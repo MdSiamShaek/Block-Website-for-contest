@@ -1,0 +1,6 @@
+/target
+session_lock.json
+recordings/
+.DS_Store
+*.exe
+*.pdb
