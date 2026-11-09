@@ -1,87 +1,75 @@
-# Block-Website-for-contest
+# Block-Website-for-contest — Cross-Platform Rust Contest Lockdown & Proctoring Suite
 
-A multi-platform contest environment lockdown toolkit designed to restrict computer web browsing to a single allowed website (configured by default for [BAPS Online Judge](https://bapsoj.org)), prevent bypasses via portable/alternative browsers, and password-protect the unlock process.
-
----
-
-## Features
-
-- **Single-Domain Whitelisting:** Blocks all websites (`*`) while exclusively allowing `bapsoj.org` and its subdomains (`*.bapsoj.org`).
-- **Contest File Downloads:** Allows safe contest files (`.txt`, `.zip`, `.cpp`, `.py`) while blocking dangerous executables (`.exe`, `.msi`) using browser `DownloadRestrictions = 1`.
-- **Alternative Browser Execution Block:** Restricts execution of non-whitelisted and portable browsers (`opera.exe`, `tor.exe`, `vivaldi.exe`, etc.) via Windows Explorer `DisallowRun`.
-- **SHA-256 Password Protection:** Unlocking requires an administrator password verified against an in-memory SHA-256 hash (default password: `MySecretPass123!`).
-- **Automatic Administrator Elevation:** Windows C++ binary triggers native UAC prompts on launch automatically.
+A cross-platform **Rust Desktop GUI application** (`eframe` / `egui`) for programming contests and lab environments. It locks down web browsers to a single chosen domain via OS-level Browser Enterprise Policies, installs and launches a chosen IDE, starts full-screen desktop video recording automatically, and requires a **dynamic per-session password** (hashed with SHA-256) set at lock time to unlock.
 
 ---
 
-## Included Files
+## Core Features
 
-| File | Platform | Description |
-| :--- | :--- | :--- |
-| `bapsoj_lockdown.cpp` | **Windows** | Native C++ executable source with CNG SHA-256 hashing, UAC self-elevation, and browser policy registry management. |
-| `BAPSOJ_Lockdown.ps1` | **Windows** | PowerShell implementation with interactive menu and masked password input. Compilable to `.exe` via `ps2exe`. |
-| `mac_lockdown.sh` | **macOS** | Shell script managing `/Library/Preferences` managed plists for Chrome, Brave, and Edge. |
-| `linux_lockdown.sh` | **Linux** | Shell script managing `/etc/opt/chrome/policies/managed/whitelist.json`. |
+1. **Dynamic Per-Session Password Protection (`src/state.rs`)**
+   - Every time you enable a lockdown, the app asks you to set and confirm a **Session Password**.
+   - The password is immediately hashed in memory using **SHA-256** and persisted to `session_lock.json` (plaintext is never stored).
+   - Unlocking the browser policies and stopping the recording requires entering that exact password—even if the app window is closed and reopened during the contest.
+
+2. **Cross-Platform Browser Policy Lockdown (`src/policy.rs`)**
+   - **Windows:** Configures `URLBlocklist = ["*"]` and `URLAllowlist = ["<domain>", "*.<domain>"]` across Chrome, Edge, and Brave (`HKLM\SOFTWARE\Policies\...`), configures Mozilla Firefox `WebsiteFilter`, sets `DownloadRestrictions` (allowing safe `.txt`/`.zip` contest problem files while blocking `.exe`/`.msi` installers, or blocking all downloads), and blocks portable browsers via Windows Explorer `DisallowRun`.
+   - **macOS:** Writes managed preference `.plist` rules under `/Library/Preferences` for Chrome, Brave, and Edge via native macOS Administrator elevation (`osascript`), and restarts running browsers.
+   - **Linux:** Writes managed policy JSON files to `/etc/opt/chrome/policies/managed/whitelist.json`, `/etc/chromium/policies/managed/whitelist.json`, and `/etc/brave/policies/managed/whitelist.json`.
+   - Automatically opens the whitelisted contest website in the browser when lockdown begins.
+
+3. **Supported IDE Selector, Silent Installer & Launcher (`src/ide.rs`)**
+   - Supports **Visual Studio Code**, **Code::Blocks**, **CP Editor**, **Sublime Text**, and **JetBrains CLion**.
+   - Automatically detects if the chosen IDE is installed on Windows (`where`), macOS (`/Applications/*.app`), or Linux (`which`).
+   - One-click or automatic silent installation via `winget` (Windows), `brew install --cask` (macOS), or `apt`/`snap` (Linux), plus automatic IDE launch on contest start.
+
+4. **Automatic Background Screen Recording (`src/recorder.rs`)**
+   - Automatically records the full desktop screen into timestamped `.mp4` files inside `recordings/` using FFmpeg (`gdigrab` on Windows, `avfoundation` on macOS, `x11grab` on Linux).
+   - Displays a live `REC HH:MM:SS` timer in the GUI and gracefully finalizes the MP4 trailer (`q\n` over `stdin`) when the session is unlocked.
+   - Includes a one-click **Install FFmpeg** button if FFmpeg is not yet installed on the machine.
 
 ---
 
-## How to Build & Run
+## Project Structure
 
-### 1. Windows (C++ Executable)
+```text
+Block-Website-for-contest/
+├── Cargo.toml                        # Rust package & dependencies (eframe, egui, sha2, serde, chrono)
+├── src/
+│   ├── main.rs                       # Cross-platform Desktop GUI (eframe/egui)
+│   ├── state.rs                      # Per-session SHA-256 password hashing & session_lock.json persistence
+│   ├── policy.rs                     # Windows Registry, macOS plist, and Linux JSON browser policy engine
+│   ├── ide.rs                        # Cross-platform IDE detection, silent installer & launcher
+│   └── recorder.rs                   # Background FFmpeg screen recorder & live timer
+├── .github/workflows/build.yml       # GitHub Actions CI building Windows .exe, macOS, and Linux binaries
+└── legacy_scripts/                   # Original standalone C++, PowerShell, macOS & Linux scripts
+```
 
-Compile with MinGW `g++` (or Visual Studio MSVC):
+---
 
+## Building & Running Locally
+
+### Prerequisites
+- [Rust Toolchain (`rustup` / `cargo`)](https://rustup.rs/)
+- Optional: [FFmpeg](https://ffmpeg.org/) (can also be installed directly from the app GUI)
+
+### Compile and Run
 ```bash
-g++ -O2 -s bapsoj_lockdown.cpp -o BAPSOJ_Lockdown.exe -lbcrypt -lshell32 -ladvapi32
+# Run in development mode
+cargo run
+
+# Build optimized release executable
+cargo build --release
 ```
 
-Double-click `BAPSOJ_Lockdown.exe` to run. Select:
-- **`1`** to enable contest lockdown.
-- **`2`** to unlock (prompts for the administrator password).
+- **Windows Release Binary:** `target\release\contest_lockdown.exe` (Run as Administrator so Registry policy edits succeed)
+- **macOS Release Binary:** `target/release/contest_lockdown`
+- **Linux Release Binary:** `target/release/contest_lockdown`
 
 ---
 
-### 2. Windows (PowerShell / PS2EXE)
+## Downloading Prebuilt Binaries (GitHub Actions)
 
-To compile the PowerShell script into an `.exe`:
-
-```powershell
-Install-Module -Name ps2exe -Scope CurrentUser -Force
-Invoke-ps2exe -InputFile ".\BAPSOJ_Lockdown.ps1" -OutputFile ".\BAPSOJ_Lockdown.exe" -requireAdmin
-```
-
----
-
-### 3. macOS
-
-Run with root privileges:
-
-```bash
-sudo bash mac_lockdown.sh
-```
-
-Select `1` to apply the policy to Chrome, Brave, and Edge. Select `2` to restore normal access.
-
-> **Note for macOS:** Apple Safari does not read enterprise policy plists. To lock down Safari, use **System Settings > Screen Time > Content Restrictions > Allowed Websites Only**.
-
----
-
-### 4. Linux
-
-Run with root privileges:
-
-```bash
-sudo bash linux_lockdown.sh
-```
-
----
-
-## Changing the Target Domain or Password
-
-1. **Target Domain:** Change `bapsoj.org` to your preferred contest domain in `bapsoj_lockdown.cpp`, `BAPSOJ_Lockdown.ps1`, `mac_lockdown.sh`, or `linux_lockdown.sh`.
-2. **Password:** Generate a SHA-256 hash for your secret password in PowerShell:
-   ```powershell
-   $Pass = "YourCustomPassword!"
-   [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Pass))).Replace("-","")
-   ```
-   Replace the `STORED_HASH` string in `bapsoj_lockdown.cpp` and `BAPSOJ_Lockdown.ps1`.
+Every push to `main` triggers the **Build Cross-Platform Binaries** GitHub Actions workflow (`.github/workflows/build.yml`), which automatically compiles:
+- `contest_lockdown-windows-x86_64.exe` (Windows)
+- `contest_lockdown-macos-arm64` (macOS)
+- `contest_lockdown-linux-x86_64` (Linux)
