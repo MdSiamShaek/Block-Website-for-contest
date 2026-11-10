@@ -14,6 +14,8 @@ pub struct LockdownSession {
     pub extra_domains: Vec<String>,
     pub password_sha256: String,
     pub selected_ide: String,
+    #[serde(default)]
+    pub selected_ides: Vec<String>,
     pub started_at: String,
     #[serde(default)]
     pub started_unix_secs: u64,
@@ -38,6 +40,7 @@ impl Default for LockdownSession {
             extra_domains: Vec::new(),
             password_sha256: String::new(),
             selected_ide: "Visual Studio Code".to_string(),
+            selected_ides: vec!["Visual Studio Code".to_string()],
             started_at: String::new(),
             started_unix_secs: 0,
             duration_minutes: 0,
@@ -110,13 +113,13 @@ pub fn session_file_path() -> PathBuf {
 }
 
 impl LockdownSession {
-    /// Creates a new locked session using the dynamically entered password.
+    /// Creates a new locked session using the dynamically entered password and multiple selected IDEs.
     #[allow(clippy::too_many_arguments)]
     pub fn new_locked(
         domain: &str,
         extra_domains: Vec<String>,
         plain_password: &str,
-        selected_ide: &str,
+        selected_ides: Vec<String>,
         duration_minutes: u32,
         block_all_downloads: bool,
         recording_path: Option<String>,
@@ -128,6 +131,11 @@ impl LockdownSession {
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
+        let primary_ide = selected_ides
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "Visual Studio Code".to_string());
+
         Self {
             is_locked: true,
             allowed_domain: if clean_domain.is_empty() {
@@ -137,13 +145,25 @@ impl LockdownSession {
             },
             extra_domains,
             password_sha256: hash_password(plain_password),
-            selected_ide: selected_ide.to_string(),
+            selected_ide: primary_ide,
+            selected_ides,
             started_at: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             started_unix_secs: now_secs,
             duration_minutes,
             block_all_downloads,
             recording_path,
             dark_mode,
+        }
+    }
+
+    /// Returns the list of selected IDE names (falling back to `selected_ide` for older session files).
+    pub fn all_selected_ides(&self) -> Vec<String> {
+        if !self.selected_ides.is_empty() {
+            self.selected_ides.clone()
+        } else if !self.selected_ide.is_empty() {
+            vec![self.selected_ide.clone()]
+        } else {
+            vec!["Visual Studio Code".to_string()]
         }
     }
 
@@ -177,7 +197,10 @@ impl LockdownSession {
     pub fn load() -> Self {
         let path = session_file_path();
         if let Ok(data) = fs::read_to_string(path) {
-            if let Ok(session) = serde_json::from_str::<LockdownSession>(&data) {
+            if let Ok(mut session) = serde_json::from_str::<LockdownSession>(&data) {
+                if session.selected_ides.is_empty() && !session.selected_ide.is_empty() {
+                    session.selected_ides = vec![session.selected_ide.clone()];
+                }
                 return session;
             }
         }

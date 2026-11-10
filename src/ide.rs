@@ -1,8 +1,9 @@
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Instant;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IdeChoice {
     VsCode,
     CodeBlocks,
@@ -50,7 +51,7 @@ impl IdeChoice {
         }
     }
 
-    /// Checks whether the selected IDE is currently installed on the system,
+    /// Checks whether the IDE is currently installed on the system,
     /// searching both system PATH and standard OS application directories.
     pub fn is_installed(&self) -> bool {
         if cfg!(target_os = "windows") {
@@ -109,12 +110,12 @@ impl IdeChoice {
     }
 
     fn windows_known_paths(&self) -> Vec<PathBuf> {
-        let local_app_data =
-            std::env::var("LOCALAPPDATA").unwrap_or_else(|_| r"C:\Users\Default\AppData\Local".to_string());
+        let local_app_data = std::env::var("LOCALAPPDATA")
+            .unwrap_or_else(|_| r"C:\Users\Default\AppData\Local".to_string());
         let program_files =
             std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".to_string());
-        let program_files_x86 =
-            std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
+        let program_files_x86 = std::env::var("ProgramFiles(x86)")
+            .unwrap_or_else(|_| r"C:\Program Files (x86)".to_string());
 
         match self {
             IdeChoice::VsCode => vec![
@@ -139,7 +140,7 @@ impl IdeChoice {
         }
     }
 
-    /// Launches the selected IDE if installed.
+    /// Launches the IDE if installed.
     pub fn launch(&self) -> Result<String, String> {
         if cfg!(target_os = "windows") {
             if let Some(exe_path) = self.windows_known_paths().into_iter().find(|p| p.exists()) {
@@ -187,7 +188,7 @@ impl IdeChoice {
         Ok(format!("Launched {}", self.display_name()))
     }
 
-    /// Spawns a tracked background installation child process for the selected IDE.
+    /// Spawns a tracked background installation child process for this IDE.
     pub fn spawn_installer(&self) -> Result<Child, String> {
         if cfg!(target_os = "windows") {
             let winget_id = match self {
@@ -256,11 +257,12 @@ impl IdeChoice {
     }
 }
 
-/// Tracks an asynchronous background IDE installation so the GUI can display a live progress indicator
-/// and auto-launch the IDE upon completion.
+/// Manages a sequential queue of IDE installations so the user can select multiple IDEs
+/// and install them one after another without package-manager lock contention.
 pub struct IdeInstallTracker {
     child: Option<Child>,
-    target_ide: Option<IdeChoice>,
+    current_ide: Option<IdeChoice>,
+    queue: VecDeque<IdeChoice>,
     started_at: Option<Instant>,
     pub auto_launch_when_done: bool,
 }
@@ -275,50 +277,104 @@ impl IdeInstallTracker {
     pub fn new() -> Self {
         Self {
             child: None,
-            target_ide: None,
+            current_ide: None,
+            queue: VecDeque::new(),
             started_at: None,
             auto_launch_when_done: false,
         }
     }
 
-    pub fn start_install(&mut self, ide: IdeChoice, auto_launch: bool) -> Result<String, String> {
-        if self.is_installing() {
-            return Err("An IDE installation is already in progress.".to_string());
+    /// Enqueues one or more IDEs for background installation.
+    pub fn enqueue_installs(
+        &mut self,
+        ides: &[IdeChoice],
+        auto_launch: bool,
+    ) -> Result<String, String> {
+        let mut added = Vec::new();
+        for &ide in ides {
+            if self.current_ide != Some(ide) && !self.queue.contains(&ide) {
+                self.queue.push_back(ide);
+                added.push(ide.display_name());
+            }
         }
-        let child = ide.spawn_installer()?;
-        self.child = Some(child);
-        self.target_ide = Some(ide);
-        self.started_at = Some(Instant::now());
         self.auto_launch_when_done = auto_launch;
-        Ok(format!(
-            "Installing {} in the background...",
-            ide.display_name()
-        ))
+
+        if self.child.is_none() {
+            self.start_next_in_queue()?;
+        }
+
+        if added.is_empty() {
+            Ok("Selected IDE(s) are already in the installation queue.".to_string())
+        } else {
+            Ok(format!(
+                "Queued installation for: {}",
+                added.join(", ")
+            ))
+        }
+    }
+
+    fn start_next_in_queue(&mut self) -> Result<(), String> {
+        if let Some(next_ide) = self.queue.pop_front() {
+            let child = next_ide.spawn_installer()?;
+            self.child = Some(child);
+            self.current_ide = Some(next_ide);
+            self.started_at = Some(Instant::now());
+        }
+        Ok(())
     }
 
     pub fn is_installing(&mut self) -> bool {
         if let Some(child) = self.child.as_mut() {
-            matches!(child.try_wait(), Ok(None))
+            if matches!(child.try_wait(), Ok(None)) {
+                return true;
+            }
+        }
+        !self.queue.is_empty()
+    }
+
+    pub fn is_ide_active_or_queued(&self, ide: IdeChoice) -> bool {
+        self.current_ide == Some(ide) || self.queue.contains(&ide)
+    }
+
+    pub fn status_summary(&self) -> String {
+        if let Some(cur) = self.current_ide {
+            let secs = self.started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0);
+            let remaining = self.queue.len();
+            if remaining > 0 {
+                format!(
+                    "Installing {} ({}s, +{} queued)...",
+                    cur.display_name(),
+                    secs,
+                    remaining
+                )
+            } else {
+                format!("Installing {} ({}s)...", cur.display_name(), secs)
+            }
         } else {
-            false
+            "Idle".to_string()
         }
     }
 
-    pub fn elapsed_secs(&self) -> u64 {
-        self.started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0)
-    }
-
-    /// Polls if the background installer just finished and returns a status message if completed.
+    /// Polls if the current background installer finished, automatically starts the next queued IDE,
+    /// and returns status messages + any IDE ready to auto-launch.
     pub fn poll_completion(&mut self) -> Option<(Result<String, String>, Option<IdeChoice>)> {
         let child = self.child.as_mut()?;
         match child.try_wait() {
             Ok(Some(status)) => {
                 self.child = None;
                 self.started_at = None;
-                let ide = self.target_ide.take();
-                let name = ide.map(|i| i.display_name()).unwrap_or("IDE");
+                let finished_ide = self.current_ide.take();
+                let name = finished_ide.map(|i| i.display_name()).unwrap_or("IDE");
+
+                // Automatically kick off next IDE in queue if any
+                let _ = self.start_next_in_queue();
+
                 if status.success() {
-                    let launch_target = if self.auto_launch_when_done { ide } else { None };
+                    let launch_target = if self.auto_launch_when_done {
+                        finished_ide
+                    } else {
+                        None
+                    };
                     Some((
                         Ok(format!("Successfully installed {}!", name)),
                         launch_target,
@@ -338,7 +394,8 @@ impl IdeInstallTracker {
             Err(e) => {
                 self.child = None;
                 self.started_at = None;
-                let _ = self.target_ide.take();
+                let _ = self.current_ide.take();
+                let _ = self.start_next_in_queue();
                 Some((Err(format!("Installer error: {}", e)), None))
             }
         }
