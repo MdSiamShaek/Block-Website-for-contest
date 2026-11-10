@@ -1,7 +1,11 @@
 use eframe::egui::{
-    self, Color32, IconData, Margin, Pos2, Rect, RichText, Rounding, Stroke, Style, Vec2, Visuals,
+    self, Align2, Color32, ColorImage, FontId, IconData, Margin, Pos2, RichText, Rounding, Sense,
+    Stroke, Style, TextureHandle, TextureOptions, Vec2, Visuals,
 };
 use std::sync::Arc;
+
+/// Embedded bytes of `/Users/siam/Desktop/Block-Website-for-contest/ProctorX Logo.png`
+pub const PROCTORX_LOGO_PNG: &[u8] = include_bytes!("../ProctorX Logo.png");
 
 /// "Neon Sunshine Bliss" Color Palette (`#0D3B66`, `#FAF0CA`, `#F4D35E`) for **ProctorX**:
 /// - **Deep Yale Navy (`#0D3B66` / `rgb(13, 59, 102)`):** Primary structural base, deep surfaces, and high-contrast ink.
@@ -37,27 +41,6 @@ pub struct AppPalette {
     pub warning_fg: Color32,
     pub warning_bg: Color32,
 }
-
-/// 15x14 100% mirror-symmetrical pixel-art matrix matching `ProctorX Pixel Keyhole Logo.png`:
-/// - Upper curved horns (rows 0..6)
-/// - Wide horizontal chevron shoulders (row 7)
-/// - Clean diagonal hollow V-arms meeting at a sharp single-pixel point (rows 8..13)
-pub const PROCTORX_PIXEL_EMBLEM: [&str; 14] = [
-    "...##.....##...",
-    "..##.......##..",
-    "..##.......##..",
-    "...##.....##...",
-    "...##.....##...",
-    "....##...##....",
-    "....##...##....",
-    "..####...####..",
-    "...##.....##...",
-    "....##...##....",
-    ".....##.##.....",
-    "......###......",
-    "......###......",
-    ".......#.......",
-];
 
 impl AppPalette {
     /// Navy Mode (Default): `#0D3B66` Deep Navy canvas, `#FAF0CA` Warm Cream text, `#F4D35E` Sunshine Gold accents.
@@ -177,12 +160,12 @@ impl AppPalette {
         visuals.selection.stroke = Stroke::new(1.0_f32, self.navy_core);
 
         style.visuals = visuals;
-        style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+        style.spacing.item_spacing = egui::vec2(10.0, 8.0);
         style.spacing.button_padding = egui::vec2(14.0, 8.0);
         ctx.set_style(style);
     }
 
-    /// Returns a styled container card Frame with symmetrical margins.
+    /// Returns a styled container card Frame with balanced padding.
     pub fn card_frame(&self) -> egui::Frame {
         let stroke_color = if self.is_dark {
             self.gold_core.gamma_multiply(0.45)
@@ -193,16 +176,16 @@ impl AppPalette {
             .fill(self.bg_card)
             .stroke(Stroke::new(1.2_f32, stroke_color))
             .rounding(Rounding::same(12.0))
-            .inner_margin(Margin::symmetric(20.0, 16.0))
+            .inner_margin(Margin::symmetric(22.0, 18.0))
     }
 
-    /// Returns a clean sub-section card Frame with symmetrical margins.
+    /// Returns a clean sub-section card Frame with balanced padding.
     pub fn sub_card_frame(&self) -> egui::Frame {
         egui::Frame::none()
             .fill(self.bg_input)
             .stroke(Stroke::new(1.0_f32, self.border_subtle))
             .rounding(Rounding::same(10.0))
-            .inner_margin(Margin::symmetric(16.0, 12.0))
+            .inner_margin(Margin::symmetric(18.0, 14.0))
     }
 
     /// Returns a highlighted banner Frame for semantic state callouts.
@@ -220,57 +203,129 @@ impl AppPalette {
             .fill(bg)
             .stroke(Stroke::new(1.0_f32, fg.gamma_multiply(0.5)))
             .rounding(Rounding::same(12.0))
-            .inner_margin(Margin::symmetric(10.0, 4.0))
+            .inner_margin(Margin::symmetric(12.0, 5.0))
             .show(ui, |ui| {
                 ui.label(RichText::new(text).color(fg).strong().size(12.0));
             });
     }
 
-    /// Draws the exact **ProctorX Pixel Keyhole Logo** from `ProctorX Pixel Keyhole Logo.png`,
-    /// 100% bilaterally mirror-symmetrical and centered:
-    /// - Deep Navy (`#061C38`) rounded-square interior
-    /// - Bold Sunshine Gold (`#F4D35E`) rounded-square border
-    /// - 15x14 palindromic pixel-art V-Keyhole emblem centered inside the square
-    pub fn draw_proctorx_pixel_logo(&self, ui: &mut egui::Ui, size: f32) {
-        let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
-        let painter = ui.painter_at(rect);
+    /// Renders a custom button of exact `[width, height]` with **100% horizontally & vertically centered text**.
+    #[allow(clippy::too_many_arguments)]
+    pub fn centered_button(
+        &self,
+        ui: &mut egui::Ui,
+        size: Vec2,
+        label: &str,
+        font_size: f32,
+        fill: Color32,
+        text_color: Color32,
+        stroke: Stroke,
+        rounding: f32,
+    ) -> egui::Response {
+        let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+        if ui.is_rect_visible(rect) {
+            let is_hovered = response.hovered() && ui.is_enabled();
+            let bg = if !ui.is_enabled() {
+                fill.gamma_multiply(0.45)
+            } else if is_hovered {
+                self.accent_hover
+            } else {
+                fill
+            };
+            let fg = if !ui.is_enabled() {
+                text_color.gamma_multiply(0.5)
+            } else if is_hovered {
+                self.text_on_gold
+            } else {
+                text_color
+            };
+            let border = if is_hovered && ui.is_enabled() {
+                Stroke::new(1.6_f32, self.cream_core)
+            } else {
+                stroke
+            };
 
-        let border_w = (size * 0.068).max(2.2);
-        let box_rounding = Rounding::same((size * 0.22).max(6.0));
-
-        // 1. Rounded-square background & bold gold border
-        painter.rect(
-            rect.shrink(border_w * 0.5),
-            box_rounding,
-            Color32::from_rgb(6, 28, 56),
-            Stroke::new(border_w, self.gold_core),
-        );
-
-        // 2. Render the 15x14 mirror-symmetric pixel grid centered at `rect.center()`
-        let cols = 15_usize;
-        let rows = PROCTORX_PIXEL_EMBLEM.len();
-        let pixel_size = (size * 0.52) / (cols as f32);
-        let grid_w = (cols as f32) * pixel_size;
-        let grid_h = (rows as f32) * pixel_size;
-        let start_x = rect.center().x - grid_w * 0.5;
-        let start_y = rect.center().y - grid_h * 0.5;
-
-        for (r_idx, row_str) in PROCTORX_PIXEL_EMBLEM.iter().enumerate() {
-            for (c_idx, ch) in row_str.chars().enumerate() {
-                if ch == '#' {
-                    let min = Pos2::new(
-                        start_x + (c_idx as f32) * pixel_size,
-                        start_y + (r_idx as f32) * pixel_size,
-                    );
-                    let max = Pos2::new(min.x + pixel_size + 0.35, min.y + pixel_size + 0.35);
-                    painter.rect_filled(
-                        Rect::from_min_max(min, max),
-                        Rounding::ZERO,
-                        self.gold_core,
-                    );
-                }
-            }
+            let painter = ui.painter();
+            painter.rect(rect, Rounding::same(rounding), bg, border);
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                label,
+                FontId::proportional(font_size),
+                fg,
+            );
         }
+        response
+    }
+
+    /// Renders a two-line centered toggle card (used on Tab 3 for Reference & Judge sites).
+    pub fn centered_two_line_card(
+        &self,
+        ui: &mut egui::Ui,
+        size: Vec2,
+        line1: &str,
+        line2: &str,
+        is_active: bool,
+    ) -> egui::Response {
+        let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+        if ui.is_rect_visible(rect) {
+            let is_hovered = response.hovered();
+            let bg = if is_active {
+                self.gold_core
+            } else if is_hovered {
+                self.bg_card_subtle
+            } else {
+                self.bg_card
+            };
+            let fg1 = if is_active {
+                self.text_on_gold
+            } else {
+                self.text_primary
+            };
+            let fg2 = if is_active {
+                self.text_on_gold.gamma_multiply(0.85)
+            } else {
+                self.text_secondary
+            };
+            let border = Stroke::new(
+                if is_active || is_hovered {
+                    1.5_f32
+                } else {
+                    1.0_f32
+                },
+                if is_active {
+                    self.cream_core
+                } else {
+                    self.border_subtle
+                },
+            );
+
+            let painter = ui.painter();
+            painter.rect(rect, Rounding::same(8.0), bg, border);
+            painter.text(
+                Pos2::new(rect.center().x, rect.center().y - 7.5),
+                Align2::CENTER_CENTER,
+                line1,
+                FontId::proportional(13.0),
+                fg1,
+            );
+            painter.text(
+                Pos2::new(rect.center().x, rect.center().y + 8.5),
+                Align2::CENTER_CENTER,
+                line2,
+                FontId::proportional(11.5),
+                fg2,
+            );
+        }
+        response
+    }
+
+    /// Draws the loaded `ProctorX Logo.png` texture at the specified `size`.
+    pub fn draw_logo_image(&self, ui: &mut egui::Ui, logo_tex: &TextureHandle, size: Vec2) {
+        let img = egui::Image::from_texture(logo_tex)
+            .fit_to_exact_size(size)
+            .rounding(Rounding::same(6.0));
+        ui.add(img);
     }
 
     /// Creates a `LayoutJob` for the two-tone **ProctorX** wordmark (`Proctor` in `#FAF0CA` + `X` in `#F4D35E`).
@@ -280,7 +335,7 @@ impl AppPalette {
             "Proctor",
             0.0,
             egui::TextFormat {
-                font_id: egui::FontId::proportional(font_size),
+                font_id: FontId::proportional(font_size),
                 color: self.cream_core,
                 ..Default::default()
             },
@@ -289,7 +344,7 @@ impl AppPalette {
             "X",
             0.0,
             egui::TextFormat {
-                font_id: egui::FontId::proportional(font_size),
+                font_id: FontId::proportional(font_size),
                 color: self.gold_core,
                 ..Default::default()
             },
@@ -298,58 +353,40 @@ impl AppPalette {
     }
 }
 
-/// Generates a 64x64 RGBA native OS window & dock icon matching the symmetrical
-/// **ProctorX Pixel Keyhole Logo** in `#0D3B66` Deep Navy and `#F4D35E` Sunshine Gold.
+/// Decodes `ProctorX Logo.png` and crops to the rounded-square emblem (`x: 30%..70%, y: 18%..58%`)
+/// so it renders at full clarity in the header bar without duplicate tiny text underneath.
+pub fn load_logo_texture(ctx: &egui::Context) -> TextureHandle {
+    let img = image::load_from_memory(PROCTORX_LOGO_PNG)
+        .expect("Failed to decode ProctorX Logo.png");
+    let (w, h) = (img.width(), img.height());
+    // Crop tightly around the rounded-square emblem in ProctorX Logo.png
+    let crop_x = (w as f32 * 0.305) as u32;
+    let crop_y = (h as f32 * 0.185) as u32;
+    let crop_w = (w as f32 * 0.39) as u32;
+    let crop_h = (h as f32 * 0.39) as u32;
+    let cropped = img.crop_imm(crop_x, crop_y, crop_w, crop_h).into_rgba8();
+
+    let (cw, ch) = cropped.dimensions();
+    let color_image =
+        ColorImage::from_rgba_unmultiplied([cw as usize, ch as usize], cropped.as_raw());
+    ctx.load_texture("proctorx_logo", color_image, TextureOptions::LINEAR)
+}
+
+/// Decodes `ProctorX Logo.png` into a native OS window & dock icon (`IconData`).
 pub fn build_window_icon() -> Arc<IconData> {
-    let w = 64_usize;
-    let h = 64_usize;
-    let mut rgba = vec![0_u8; w * h * 4];
-
-    let navy = [6_u8, 28, 56, 255];    // Deep Navy backdrop
-    let gold = [244_u8, 211, 94, 255]; // #F4D35E Sunshine Gold
-
-    for y in 0..h {
-        for x in 0..w {
-            let fx = (x as f32 - 31.5) / 31.5;
-            let fy = (y as f32 - 31.5) / 31.5;
-            let idx = (y * w + x) * 4;
-
-            let qx = fx.abs() - 0.66;
-            let qy = fy.abs() - 0.66;
-            let r_dist =
-                (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 0.22;
-
-            if r_dist <= 0.0 {
-                let color = if r_dist >= -0.095 { gold } else { navy };
-                rgba[idx..idx + 4].copy_from_slice(&color);
-            }
-        }
-    }
-
-    // Stamp the 15x14 symmetrical pixel emblem at 2x2 pixels per cell (30x28 centered at 17..47, 18..46)
-    let scale = 2_usize;
-    let rows = PROCTORX_PIXEL_EMBLEM.len();
-    let start_x = (w - 15 * scale) / 2;
-    let start_y = (h - rows * scale) / 2;
-
-    for (r_idx, row_str) in PROCTORX_PIXEL_EMBLEM.iter().enumerate() {
-        for (c_idx, ch) in row_str.chars().enumerate() {
-            if ch == '#' {
-                for dy in 0..scale {
-                    for dx in 0..scale {
-                        let px = start_x + c_idx * scale + dx;
-                        let py = start_y + r_idx * scale + dy;
-                        let idx = (py * w + px) * 4;
-                        rgba[idx..idx + 4].copy_from_slice(&gold);
-                    }
-                }
-            }
-        }
+    if let Ok(img) = image::load_from_memory(PROCTORX_LOGO_PNG) {
+        let rgba_img = img.into_rgba8();
+        let (w, h) = rgba_img.dimensions();
+        return Arc::new(IconData {
+            rgba: rgba_img.into_raw(),
+            width: w,
+            height: h,
+        });
     }
 
     Arc::new(IconData {
-        rgba,
-        width: w as u32,
-        height: h as u32,
+        rgba: vec![0; 64 * 64 * 4],
+        width: 64,
+        height: 64,
     })
 }
