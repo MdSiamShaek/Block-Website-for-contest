@@ -18,8 +18,8 @@ use state::{
 use std::time::Duration;
 use theme::{
     build_window_icon, load_logo_texture, AppIcon, AppPalette, HEADER_BTN_SIZE,
-    INPUT_BAR_BTN_SIZE, LOGO_CARD_SIZE, LOGO_HEADER_SIZE, NAV_BTN_SIZE, PRIMARY_CTA_HEIGHT,
-    SMALL_ACTION_BTN_SIZE, SMALL_ROUNDING, STD_ROUNDING, TAB_BAR_HEIGHT,
+    INPUT_BAR_BTN_SIZE, LOGO_HEADER_SIZE, NAV_BTN_SIZE, PRIMARY_CTA_HEIGHT, SMALL_ACTION_BTN_SIZE,
+    SMALL_ROUNDING, STD_ROUNDING, TAB_BAR_HEIGHT,
 };
 
 /// The 4 sequential pages:
@@ -87,8 +87,8 @@ impl WizardPage {
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([860.0, 740.0])
-            .with_min_inner_size([760.0, 660.0])
+            .with_inner_size([860.0, 760.0])
+            .with_min_inner_size([760.0, 680.0])
             .with_icon(build_window_icon())
             .with_title("ProctorX — SECURE. MONITOR. CONTROL."),
         ..Default::default()
@@ -707,7 +707,6 @@ impl eframe::App for ContestLockdownApp {
                 }
 
                 ui.horizontal(|ui| {
-                    let _ = p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(18.0));
                     ui.label(
                         RichText::new("Activity Log")
                             .size(12.0)
@@ -789,7 +788,8 @@ impl eframe::App for ContestLockdownApp {
 impl ContestLockdownApp {
     // ========================================================================
     // TAB 1: CONTEST IDE INSTALLER & LAUNCHER
-    // - Clicking the IDE logo icon, checkbox, title, or row selects the IDE
+    // - No small logo icons on the IDE rows
+    // - Clicking anywhere on the IDE row/checkbox/title selects the IDE
     // - Both batch buttons are ALWAYS visible in full contrast
     // ========================================================================
     fn render_page_1_ide(&mut self, ui: &mut egui::Ui, p: AppPalette, is_installing_ide: bool) {
@@ -800,7 +800,6 @@ impl ContestLockdownApp {
 
             // Card Header Row
             ui.horizontal(|ui| {
-                let _ = p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
                 ui.label(
                     RichText::new("Contest IDE Installer & Launcher")
                         .size(18.0)
@@ -890,7 +889,7 @@ impl ContestLockdownApp {
             ui.separator();
             ui.add_space(4.0);
 
-            // Render uniform IDE rows where clicking the IDE icon, checkbox, or row selects the IDE
+            // Render uniform IDE rows (no logo icons on rows; clicking anywhere on the row selects it)
             for ide in IdeChoice::ALL {
                 let mut is_checked = self.selected_ides.contains(&ide);
                 let ide_installed = ide.is_installed();
@@ -918,22 +917,12 @@ impl ContestLockdownApp {
                         border_col,
                     ))
                     .rounding(Rounding::same(STD_ROUNDING))
-                    .inner_margin(Margin::symmetric(14.0, 7.0))
+                    .inner_margin(Margin::symmetric(14.0, 8.0))
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
                             let mut row_toggled = false;
 
-                            // 1. Clickable IDE Logo Icon
-                            if p
-                                .draw_logo_image(ui, &self.logo_texture, Vec2::splat(22.0))
-                                .on_hover_text(format!("Click to select {}", ide.display_name()))
-                                .clicked()
-                            {
-                                row_toggled = true;
-                            }
-
-                            // 2. Clickable Checkbox + IDE Title
                             if ui
                                 .checkbox(
                                     &mut is_checked,
@@ -944,7 +933,6 @@ impl ContestLockdownApp {
                                 row_toggled = true;
                             }
 
-                            // 3. Clickable IDE Description Label
                             if ui
                                 .add(
                                     egui::Label::new(
@@ -1152,7 +1140,6 @@ impl ContestLockdownApp {
 
     // ========================================================================
     // TAB 2: AUTOMATED DESKTOP VIDEO RECORDING
-    // - Fixed extra vertical space in the file selection section by constraining row height
     // ========================================================================
     fn render_page_2_recording(
         &mut self,
@@ -1167,7 +1154,6 @@ impl ContestLockdownApp {
             ui.set_width(ui.available_width());
 
             ui.horizontal(|ui| {
-                let _ = p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
                 ui.label(
                     RichText::new("Automated Desktop Video Recording")
                         .size(18.0)
@@ -1237,7 +1223,6 @@ impl ContestLockdownApp {
                 );
                 ui.add_space(4.0);
 
-                // Fixed-height 36px horizontal row so right_to_left never expands vertically!
                 ui.allocate_ui_with_layout(
                     Vec2::new(ui.available_width(), INPUT_BAR_BTN_SIZE.y),
                     egui::Layout::right_to_left(egui::Align::Center),
@@ -1360,7 +1345,8 @@ impl ContestLockdownApp {
 
     // ========================================================================
     // TAB 3: WEBSITE WHITELIST & BROWSER POLICY
-    // - Fixed extra space & fixed "Browser Download Policy" and "Auto-Unlock Contest Timer"
+    // - "Browser Download Policy" and "Auto-Unlock Contest Timer" are on separate full-width rows
+    // - Added "10H" option to Auto-Unlock Contest Timer
     // ========================================================================
     fn render_page_3_website(&mut self, ui: &mut egui::Ui, p: AppPalette) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
@@ -1370,7 +1356,6 @@ impl ContestLockdownApp {
             ui.set_width(ui.available_width());
 
             ui.horizontal(|ui| {
-                let _ = p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
                 ui.label(
                     RichText::new("Website Whitelist & Browser Policy")
                         .size(18.0)
@@ -1395,7 +1380,7 @@ impl ContestLockdownApp {
             ui.add_space(6.0);
 
             // ----------------------------------------------------------------
-            // SUB-PANEL 1: PRIMARY CONTEST DOMAIN
+            // ROW 1: PRIMARY CONTEST PLATFORM
             // ----------------------------------------------------------------
             p.sub_card_frame().show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -1405,7 +1390,7 @@ impl ContestLockdownApp {
                         .strong()
                         .color(title_col),
                 );
-                ui.add_space(6.0);
+                ui.add_space(4.0);
 
                 ui.allocate_ui_with_layout(
                     Vec2::new(ui.available_width(), INPUT_BAR_BTN_SIZE.y),
@@ -1461,10 +1446,10 @@ impl ContestLockdownApp {
                 );
             });
 
-            ui.add_space(8.0);
+            ui.add_space(6.0);
 
             // ----------------------------------------------------------------
-            // SUB-PANEL 2: REFERENCE & DOCUMENTATION WHITELIST
+            // ROW 2: REFERENCE & DOCUMENTATION WHITELIST
             // ----------------------------------------------------------------
             p.sub_card_frame().show(ui, |ui| {
                 ui.set_width(ui.available_width());
@@ -1474,7 +1459,7 @@ impl ContestLockdownApp {
                         .strong()
                         .color(title_col),
                 );
-                ui.add_space(6.0);
+                ui.add_space(4.0);
 
                 let presets = [
                     ("cppreference.com", "C/C++ Docs"),
@@ -1493,7 +1478,7 @@ impl ContestLockdownApp {
                         if p
                             .centered_two_line_card(
                                 ui,
-                                Vec2::new(card_w, 42.0),
+                                Vec2::new(card_w, 40.0),
                                 label,
                                 domain,
                                 is_enabled,
@@ -1505,9 +1490,8 @@ impl ContestLockdownApp {
                     }
                 });
 
-                ui.add_space(8.0);
+                ui.add_space(6.0);
 
-                // Fixed-height 36px row so right_to_left never expands vertically!
                 ui.allocate_ui_with_layout(
                     Vec2::new(ui.available_width(), INPUT_BAR_BTN_SIZE.y),
                     egui::Layout::right_to_left(egui::Align::Center),
@@ -1578,133 +1562,132 @@ impl ContestLockdownApp {
                 }
             });
 
-            ui.add_space(8.0);
+            ui.add_space(6.0);
 
             // ----------------------------------------------------------------
-            // SUB-PANEL 3: MATCHING SYMMETRICAL 2-COLUMN CARDS
-            // - Left Card: Browser Download Policy (2 equal toggle buttons, 32px tall)
-            // - Right Card: Auto-Unlock Contest Timer (5 equal toggle buttons, 32px tall)
+            // ROW 3: BROWSER DOWNLOAD POLICY (DEDICATED FULL-WIDTH ROW)
             // ----------------------------------------------------------------
-            let split_gap = 12.0_f32;
-            let outer_col_w = ((ui.available_width() - split_gap) * 0.5).max(200.0);
-            // Subtract sub_card_frame's symmetric(16.0, 12.0) inner margin (32px) + 2px stroke
-            let inner_col_w = (outer_col_w - 34.0).max(160.0);
+            p.sub_card_frame().show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(
+                    RichText::new("Browser Download Policy")
+                        .size(14.0)
+                        .strong()
+                        .color(title_col),
+                );
+                ui.add_space(6.0);
 
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = split_gap;
-
-                // Left Card: Browser Download Policy
-                p.sub_card_frame().show(ui, |ui| {
-                    ui.set_min_width(inner_col_w);
-                    ui.set_max_width(inner_col_w);
-                    ui.label(
-                        RichText::new("Browser Download Policy")
-                            .size(14.0)
-                            .strong()
-                            .color(title_col),
-                    );
-                    ui.add_space(8.0);
-
-                    let d_gap = 8.0_f32;
-                    let d_btn_w = ((inner_col_w - d_gap) * 0.5).max(70.0);
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = d_gap;
-                        for (block_all, label) in [
-                            (false, "Safe Files (.txt/.zip)"),
-                            (true, "Block All Downloads"),
-                        ] {
-                            let is_sel = self.block_all_downloads == block_all;
-                            let fill = if is_sel { p.gold_core } else { p.bg_card };
-                            let fg = if is_sel {
-                                p.text_on_gold
+                let d_gap = 12.0_f32;
+                let d_btn_w = ((ui.available_width() - d_gap) * 0.5).max(150.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = d_gap;
+                    for (block_all, label) in [
+                        (false, "Allow Safe Contest Files (.txt, .zip, .pdf)"),
+                        (true, "Block All File Downloads Completely"),
+                    ] {
+                        let is_sel = self.block_all_downloads == block_all;
+                        let fill = if is_sel { p.gold_core } else { p.bg_card };
+                        let fg = if is_sel {
+                            p.text_on_gold
+                        } else {
+                            p.text_primary
+                        };
+                        let border = Stroke::new(
+                            1.2_f32,
+                            if is_sel {
+                                p.cream_core
                             } else {
-                                p.text_primary
-                            };
-                            let border = Stroke::new(
-                                1.0_f32,
-                                if is_sel {
-                                    p.cream_core
-                                } else {
-                                    p.border_subtle
-                                },
-                            );
-                            let icon = if is_sel { Some(AppIcon::Check) } else { None };
-                            if p
-                                .icon_button(
-                                    ui,
-                                    Vec2::new(d_btn_w, 32.0),
-                                    icon,
-                                    false,
-                                    label,
-                                    12.0,
-                                    fill,
-                                    fg,
-                                    border,
-                                    SMALL_ROUNDING,
-                                )
-                                .clicked()
-                            {
-                                self.block_all_downloads = block_all;
-                            }
+                                p.border_subtle
+                            },
+                        );
+                        let icon = if is_sel { Some(AppIcon::Check) } else { None };
+                        if p
+                            .icon_button(
+                                ui,
+                                Vec2::new(d_btn_w, 34.0),
+                                icon,
+                                false,
+                                label,
+                                13.0,
+                                fill,
+                                fg,
+                                border,
+                                SMALL_ROUNDING,
+                            )
+                            .clicked()
+                        {
+                            self.block_all_downloads = block_all;
                         }
-                    });
+                    }
                 });
+            });
 
-                // Right Card: Auto-Unlock Contest Timer
-                p.sub_card_frame().show(ui, |ui| {
-                    ui.set_min_width(inner_col_w);
-                    ui.set_max_width(inner_col_w);
-                    ui.label(
-                        RichText::new("Auto-Unlock Contest Timer")
-                            .size(14.0)
-                            .strong()
-                            .color(title_col),
-                    );
-                    ui.add_space(8.0);
+            ui.add_space(6.0);
 
-                    let t_gap = 6.0_f32;
-                    let btn_w = ((inner_col_w - t_gap * 4.0) / 5.0).max(38.0);
-                    ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = t_gap;
-                        for (mins, label) in [
-                            (0, "Manual"),
-                            (60, "1h"),
-                            (120, "2h"),
-                            (180, "3h"),
-                            (300, "5h"),
-                        ] {
-                            let is_sel = self.duration_minutes == mins;
-                            let fill = if is_sel { p.gold_core } else { p.bg_card };
-                            let fg = if is_sel {
-                                p.text_on_gold
+            // ----------------------------------------------------------------
+            // ROW 4: AUTO-UNLOCK CONTEST TIMER (DEDICATED FULL-WIDTH ROW WITH 10H)
+            // ----------------------------------------------------------------
+            p.sub_card_frame().show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.label(
+                    RichText::new("Auto-Unlock Contest Timer")
+                        .size(14.0)
+                        .strong()
+                        .color(title_col),
+                );
+                ui.add_space(6.0);
+
+                let timer_options = [
+                    (0_u32, "Manual"),
+                    (60, "1H"),
+                    (120, "2H"),
+                    (180, "3H"),
+                    (300, "5H"),
+                    (600, "10H"),
+                ];
+                let t_gap = 10.0_f32;
+                let btn_w =
+                    ((ui.available_width() - t_gap * (timer_options.len() as f32 - 1.0))
+                        / (timer_options.len() as f32))
+                        .max(60.0);
+
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = t_gap;
+                    for (mins, label) in timer_options {
+                        let is_sel = self.duration_minutes == mins;
+                        let fill = if is_sel { p.gold_core } else { p.bg_card };
+                        let fg = if is_sel {
+                            p.text_on_gold
+                        } else {
+                            p.text_primary
+                        };
+                        let border = Stroke::new(
+                            1.2_f32,
+                            if is_sel {
+                                p.cream_core
                             } else {
-                                p.text_primary
-                            };
-                            let border = Stroke::new(
-                                1.0_f32,
-                                if is_sel {
-                                    p.cream_core
-                                } else {
-                                    p.border_subtle
-                                },
-                            );
-                            if p
-                                .centered_button(
-                                    ui,
-                                    Vec2::new(btn_w, 32.0),
-                                    label,
-                                    12.0,
-                                    fill,
-                                    fg,
-                                    border,
-                                    SMALL_ROUNDING,
-                                )
-                                .clicked()
-                            {
-                                self.duration_minutes = mins;
-                            }
+                                p.border_subtle
+                            },
+                        );
+                        let icon = if is_sel { Some(AppIcon::Check) } else { None };
+                        if p
+                            .icon_button(
+                                ui,
+                                Vec2::new(btn_w, 34.0),
+                                icon,
+                                false,
+                                label,
+                                13.0,
+                                fill,
+                                fg,
+                                border,
+                                SMALL_ROUNDING,
+                            )
+                            .clicked()
+                        {
+                            self.duration_minutes = mins;
                         }
-                    });
+                    }
                 });
             });
         });
@@ -1719,15 +1702,12 @@ impl ContestLockdownApp {
         p.card_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
 
-            ui.horizontal(|ui| {
-                let _ = p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
-                ui.label(
-                    RichText::new("Set Session Password & Activate Lockdown")
-                        .size(18.0)
-                        .strong()
-                        .color(title_col),
-                );
-            });
+            ui.label(
+                RichText::new("Set Session Password & Activate Lockdown")
+                    .size(18.0)
+                    .strong()
+                    .color(title_col),
+            );
             ui.add_space(6.0);
             ui.separator();
             ui.add_space(8.0);
@@ -1751,6 +1731,16 @@ impl ContestLockdownApp {
                         .map(|i| i.display_name())
                         .collect::<Vec<_>>()
                         .join(", ")
+                };
+
+                let timer_label = match self.duration_minutes {
+                    0 => "Manual Unlock".to_string(),
+                    60 => "1H".to_string(),
+                    120 => "2H".to_string(),
+                    180 => "3H".to_string(),
+                    300 => "5H".to_string(),
+                    600 => "10H".to_string(),
+                    m => format!("{} mins", m),
                 };
 
                 let rows = [
@@ -1779,11 +1769,7 @@ impl ContestLockdownApp {
                             } else {
                                 String::new()
                             },
-                            if self.duration_minutes == 0 {
-                                "Manual Unlock".to_string()
-                            } else {
-                                format!("{} mins", self.duration_minutes)
-                            }
+                            timer_label
                         ),
                         WizardPage::WebsitePolicy,
                     ),
@@ -2060,15 +2046,12 @@ impl ContestLockdownApp {
 
         p.card_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                let _ = p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
-                ui.label(
-                    RichText::new("Quick Actions")
-                        .size(15.5)
-                        .strong()
-                        .color(title_col),
-                );
-            });
+            ui.label(
+                RichText::new("Quick Actions")
+                    .size(15.5)
+                    .strong()
+                    .color(title_col),
+            );
             ui.add_space(8.0);
 
             ui.horizontal_wrapped(|ui| {
@@ -2139,15 +2122,12 @@ impl ContestLockdownApp {
 
         p.card_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.horizontal(|ui| {
-                let _ = p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
-                ui.label(
-                    RichText::new("Unlock Contest Environment")
-                        .size(15.5)
-                        .strong()
-                        .color(title_col),
-                );
-            });
+            ui.label(
+                RichText::new("Unlock Contest Environment")
+                    .size(15.5)
+                    .strong()
+                    .color(title_col),
+            );
             ui.add_space(8.0);
 
             ui.allocate_ui_with_layout(
