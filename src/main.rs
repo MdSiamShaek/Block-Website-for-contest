@@ -6,7 +6,9 @@ mod recorder;
 mod state;
 mod theme;
 
-use eframe::egui::{self, Color32, FontId, Margin, RichText, Rounding, Stroke, TextureHandle, Vec2};
+use eframe::egui::{
+    self, Color32, FontId, Margin, RichText, Rounding, Stroke, TextureHandle, Vec2,
+};
 use ide::{IdeChoice, IdeInstallTracker};
 use policy::{disable_browser_lockdown, enable_browser_lockdown, open_allowed_website};
 use recorder::ScreenRecorder;
@@ -14,7 +16,11 @@ use state::{
     evaluate_password_strength, normalize_domain, verify_password, LockdownSession,
 };
 use std::time::Duration;
-use theme::{build_window_icon, load_logo_texture, AppPalette};
+use theme::{
+    build_window_icon, load_logo_texture, AppIcon, AppPalette, HEADER_BTN_SIZE,
+    INPUT_BAR_BTN_SIZE, LOGO_CARD_SIZE, LOGO_HEADER_SIZE, NAV_BTN_SIZE, PRIMARY_CTA_HEIGHT,
+    SMALL_ACTION_BTN_SIZE, SMALL_ROUNDING, STD_ROUNDING, TAB_BAR_HEIGHT,
+};
 
 /// The 4 sequential pages:
 /// 1. Contest IDE Installer & Launcher
@@ -450,7 +456,7 @@ impl eframe::App for ContestLockdownApp {
         }
 
         // ====================================================================
-        // SINGLE-ROW PROCTORX TOP HEADER BAR (USING "ProctorX Logo.png")
+        // SINGLE-ROW PROCTORX TOP HEADER BAR (ALL BADGES & BUTTONS 128x32)
         // ====================================================================
         egui::TopBottomPanel::top("header_panel")
             .frame(
@@ -460,11 +466,8 @@ impl eframe::App for ContestLockdownApp {
                     .inner_margin(Margin::symmetric(24.0, 12.0)),
             )
             .show(ctx, |ui| {
-                // Single horizontal row:
-                // Left: [ProctorX Logo.png] ProctorX  •  SECURE. MONITOR. CONTROL.
-                // Right: [🔓 UNLOCKED] [⏹ Recorder Idle] [☀ Cream Mode]
                 ui.horizontal(|ui| {
-                    p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(40.0));
+                    p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_HEADER_SIZE));
                     ui.add_space(6.0);
                     ui.label(p.proctorx_wordmark_job(23.0));
                     ui.add_space(8.0);
@@ -475,22 +478,25 @@ impl eframe::App for ContestLockdownApp {
                             .color(p.gold_core),
                     );
 
+                    // Right side: All 3 pills/buttons have the exact same HEADER_BTN_SIZE (128x32)
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let theme_label = if p.is_dark {
-                            "☀ Cream Mode"
+                        let (theme_icon, theme_label) = if p.is_dark {
+                            (AppIcon::Sun, "Cream Mode")
                         } else {
-                            "🌙 Navy Mode"
+                            (AppIcon::Moon, "Navy Mode")
                         };
                         if p
-                            .centered_button(
+                            .icon_button(
                                 ui,
-                                Vec2::new(114.0, 28.0),
+                                HEADER_BTN_SIZE,
+                                Some(theme_icon),
+                                false,
                                 theme_label,
-                                12.0,
+                                12.5,
                                 p.gold_core,
                                 p.text_on_gold,
                                 Stroke::NONE,
-                                12.0,
+                                STD_ROUNDING,
                             )
                             .on_hover_text("Switch between #0D3B66 Navy Mode and #FAF0CA Cream Mode")
                             .clicked()
@@ -499,20 +505,43 @@ impl eframe::App for ContestLockdownApp {
                         }
 
                         if is_rec {
-                            p.badge(
+                            p.uniform_badge(
                                 ui,
-                                &format!("⏺ REC {}", self.recorder.elapsed_formatted()),
+                                HEADER_BTN_SIZE,
+                                Some(AppIcon::Record),
+                                &format!("REC {}", self.recorder.elapsed_formatted()),
                                 p.danger_fg,
                                 p.danger_bg,
                             );
                         } else {
-                            p.badge(ui, "⏹ Recorder Idle", p.cream_core, p.navy_core);
+                            p.uniform_badge(
+                                ui,
+                                HEADER_BTN_SIZE,
+                                Some(AppIcon::Stop),
+                                "Recorder Idle",
+                                p.cream_core,
+                                p.navy_core,
+                            );
                         }
 
                         if self.session.is_locked {
-                            p.badge(ui, "🔒 LOCKED", p.danger_fg, p.danger_bg);
+                            p.uniform_badge(
+                                ui,
+                                HEADER_BTN_SIZE,
+                                Some(AppIcon::Lock),
+                                "LOCKED",
+                                p.danger_fg,
+                                p.danger_bg,
+                            );
                         } else {
-                            p.badge(ui, "🔓 UNLOCKED", p.text_on_gold, p.gold_core);
+                            p.uniform_badge(
+                                ui,
+                                HEADER_BTN_SIZE,
+                                Some(AppIcon::Unlock),
+                                "UNLOCKED",
+                                p.text_on_gold,
+                                p.gold_core,
+                            );
                         }
                     });
                 });
@@ -547,13 +576,13 @@ impl eframe::App for ContestLockdownApp {
                             if p
                                 .centered_button(
                                     ui,
-                                    Vec2::new(tab_w, 36.0),
+                                    Vec2::new(tab_w, TAB_BAR_HEIGHT),
                                     page.short_tab_label(),
                                     13.5,
                                     fill,
                                     text_col,
                                     Stroke::new(1.2_f32, border_col),
-                                    8.0,
+                                    STD_ROUNDING,
                                 )
                                 .clicked()
                             {
@@ -565,7 +594,7 @@ impl eframe::App for ContestLockdownApp {
             });
 
         // ====================================================================
-        // SYMMETRICAL BOTTOM NAVIGATION & ACTIVITY LOG PANEL
+        // SYMMETRICAL BOTTOM NAVIGATION & ACTIVITY LOG PANEL (NO TOFU ARROWS)
         // ====================================================================
         egui::TopBottomPanel::bottom("footer_log_panel")
             .frame(
@@ -576,22 +605,21 @@ impl eframe::App for ContestLockdownApp {
             )
             .show(ctx, |ui| {
                 if !self.session.is_locked {
-                    let nav_btn_w = 195.0;
-                    let nav_btn_h = 36.0;
-
                     ui.horizontal(|ui| {
-                        // Left Button (Fixed 195x36, Centered Text)
+                        // Left Button (Fixed NAV_BTN_SIZE 195x36, Vector ArrowLeft Icon)
                         if let Some(prev_page) = self.current_page.prev() {
                             if p
-                                .centered_button(
+                                .icon_button(
                                     ui,
-                                    Vec2::new(nav_btn_w, nav_btn_h),
-                                    &format!("← Back: {}", prev_page.short_tab_label()),
+                                    NAV_BTN_SIZE,
+                                    Some(AppIcon::ArrowLeft),
+                                    false,
+                                    &format!("Back: {}", prev_page.short_tab_label()),
                                     13.0,
                                     p.navy_core,
                                     p.cream_core,
                                     Stroke::new(1.2_f32, p.gold_core),
-                                    8.0,
+                                    STD_ROUNDING,
                                 )
                                 .clicked()
                             {
@@ -599,47 +627,53 @@ impl eframe::App for ContestLockdownApp {
                             }
                         } else {
                             ui.add_enabled_ui(false, |ui| {
-                                let _ = p.centered_button(
+                                let _ = p.icon_button(
                                     ui,
-                                    Vec2::new(nav_btn_w, nav_btn_h),
-                                    "← First Step",
+                                    NAV_BTN_SIZE,
+                                    Some(AppIcon::ArrowLeft),
+                                    false,
+                                    "First Step",
                                     13.0,
                                     p.navy_core,
                                     p.cream_core,
                                     Stroke::new(1.0_f32, p.border_subtle),
-                                    8.0,
+                                    STD_ROUNDING,
                                 );
                             });
                         }
 
-                        // Right Button placed via right_to_left first so Center gets exact remaining width
+                        // Right Button placed via right_to_left first (Fixed NAV_BTN_SIZE 195x36, Vector ArrowRight Icon)
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if let Some(next_page) = self.current_page.next() {
                                 if p
-                                    .centered_button(
+                                    .icon_button(
                                         ui,
-                                        Vec2::new(nav_btn_w, nav_btn_h),
-                                        &format!("Next: {} →", next_page.short_tab_label()),
+                                        NAV_BTN_SIZE,
+                                        Some(AppIcon::ArrowRight),
+                                        true,
+                                        &format!("Next: {}", next_page.short_tab_label()),
                                         13.0,
                                         p.gold_core,
                                         p.text_on_gold,
                                         Stroke::new(1.2_f32, p.cream_core),
-                                        8.0,
+                                        STD_ROUNDING,
                                     )
                                     .clicked()
                                 {
                                     self.current_page = next_page;
                                 }
                             } else if p
-                                .centered_button(
+                                .icon_button(
                                     ui,
-                                    Vec2::new(nav_btn_w, nav_btn_h),
-                                    "🔒 Activate Lockdown",
+                                    NAV_BTN_SIZE,
+                                    Some(AppIcon::Lock),
+                                    false,
+                                    "Activate Lockdown",
                                     13.0,
                                     p.gold_core,
                                     p.text_on_gold,
                                     Stroke::new(1.2_f32, p.cream_core),
-                                    8.0,
+                                    STD_ROUNDING,
                                 )
                                 .clicked()
                             {
@@ -648,7 +682,7 @@ impl eframe::App for ContestLockdownApp {
 
                             // Center Title centered across the exact remaining middle gap
                             ui.allocate_ui_with_layout(
-                                Vec2::new(ui.available_width(), nav_btn_h),
+                                Vec2::new(ui.available_width(), NAV_BTN_SIZE.y),
                                 egui::Layout::centered_and_justified(egui::Direction::LeftToRight),
                                 |ui| {
                                     ui.label(
@@ -670,15 +704,27 @@ impl eframe::App for ContestLockdownApp {
                 }
 
                 ui.horizontal(|ui| {
+                    p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(18.0));
                     ui.label(
                         RichText::new("Activity Log")
-                            .size(11.5)
+                            .size(12.0)
                             .strong()
                             .color(p.gold_core),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .small_button(RichText::new("Clear").color(p.text_primary))
+                        if p
+                            .icon_button(
+                                ui,
+                                SMALL_ACTION_BTN_SIZE,
+                                Some(AppIcon::Trash),
+                                false,
+                                "Clear Log",
+                                12.0,
+                                p.navy_core,
+                                p.cream_core,
+                                Stroke::new(1.0_f32, p.gold_core.gamma_multiply(0.6)),
+                                SMALL_ROUNDING,
+                            )
                             .clicked()
                         {
                             self.status_log.clear();
@@ -687,7 +733,7 @@ impl eframe::App for ContestLockdownApp {
                     });
                 });
                 egui::ScrollArea::vertical()
-                    .max_height(44.0)
+                    .max_height(42.0)
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
@@ -739,7 +785,7 @@ impl eframe::App for ContestLockdownApp {
 
 impl ContestLockdownApp {
     // ========================================================================
-    // TAB 1: CONTEST IDE INSTALLER & LAUNCHER (BALANCED SPACING & CENTERED BTNS)
+    // TAB 1: CONTEST IDE INSTALLER & LAUNCHER (ALL BUTTONS UNIFORM 104x30)
     // ========================================================================
     fn render_page_1_ide(&mut self, ui: &mut egui::Ui, p: AppPalette, is_installing_ide: bool) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
@@ -747,7 +793,9 @@ impl ContestLockdownApp {
         p.card_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
 
+            // Card Header Row: Logo + Title on Left | Uniform 104x30 Action Buttons & Badge on Right
             ui.horizontal(|ui| {
+                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
                 ui.label(
                     RichText::new("Contest IDE Installer & Launcher")
                         .size(18.0)
@@ -756,30 +804,76 @@ impl ContestLockdownApp {
                 );
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("Clear").clicked() {
+                    if p
+                        .icon_button(
+                            ui,
+                            SMALL_ACTION_BTN_SIZE,
+                            Some(AppIcon::Close),
+                            false,
+                            "Clear",
+                            12.0,
+                            p.bg_input,
+                            p.text_primary,
+                            Stroke::new(1.0_f32, p.border_subtle),
+                            SMALL_ROUNDING,
+                        )
+                        .clicked()
+                    {
                         self.selected_ides.clear();
                     }
-                    if ui.small_button("Select Installed").clicked() {
+                    if p
+                        .icon_button(
+                            ui,
+                            SMALL_ACTION_BTN_SIZE,
+                            Some(AppIcon::Check),
+                            false,
+                            "Installed",
+                            12.0,
+                            p.bg_input,
+                            p.text_primary,
+                            Stroke::new(1.0_f32, p.border_subtle),
+                            SMALL_ROUNDING,
+                        )
+                        .clicked()
+                    {
                         self.selected_ides = IdeChoice::ALL
                             .into_iter()
                             .filter(|i| i.is_installed())
                             .collect();
                     }
-                    if ui.small_button("Select All").clicked() {
+                    if p
+                        .icon_button(
+                            ui,
+                            SMALL_ACTION_BTN_SIZE,
+                            Some(AppIcon::Plus),
+                            false,
+                            "Select All",
+                            12.0,
+                            p.bg_input,
+                            p.text_primary,
+                            Stroke::new(1.0_f32, p.border_subtle),
+                            SMALL_ROUNDING,
+                        )
+                        .clicked()
+                    {
                         self.selected_ides = IdeChoice::ALL.to_vec();
                     }
 
                     if is_installing_ide {
-                        p.badge(
+                        p.uniform_badge(
                             ui,
-                            &format!("⏳ {}", self.ide_installer.status_summary()),
+                            SMALL_ACTION_BTN_SIZE,
+                            Some(AppIcon::Download),
+                            "Installing",
                             p.warning_fg,
                             p.warning_bg,
                         );
                     } else {
-                        p.badge(
+                        p.uniform_badge(
                             ui,
-                            &format!("✔ {} Selected", self.selected_ides.len()),
+                            SMALL_ACTION_BTN_SIZE,
+                            Some(AppIcon::Check),
+                            &format!("{} Selected", self.selected_ides.len()),
                             p.text_on_gold,
                             p.gold_core,
                         );
@@ -818,8 +912,8 @@ impl ContestLockdownApp {
                         if is_checked { 1.6_f32 } else { 1.0_f32 },
                         border_col,
                     ))
-                    .rounding(Rounding::same(8.0))
-                    .inner_margin(Margin::symmetric(16.0, 10.0))
+                    .rounding(Rounding::same(STD_ROUNDING))
+                    .inner_margin(Margin::symmetric(16.0, 9.0))
                     .show(ui, |ui| {
                         ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
@@ -845,19 +939,21 @@ impl ContestLockdownApp {
                                     .color(p.text_secondary),
                             );
 
-                            // Right-aligned uniform 98x28 centered action button + status label
+                            // Right-aligned uniform SMALL_ACTION_BTN_SIZE (104x30) button + status label
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if ide_installed {
                                     if p
-                                        .centered_button(
+                                        .icon_button(
                                             ui,
-                                            Vec2::new(98.0, 28.0),
-                                            "🚀 Launch",
+                                            SMALL_ACTION_BTN_SIZE,
+                                            Some(AppIcon::Play),
+                                            false,
+                                            "Launch",
                                             12.5,
                                             p.gold_core,
                                             p.text_on_gold,
                                             Stroke::NONE,
-                                            6.0,
+                                            SMALL_ROUNDING,
                                         )
                                         .clicked()
                                     {
@@ -868,37 +964,41 @@ impl ContestLockdownApp {
                                     }
                                     ui.add_space(6.0);
                                     ui.label(
-                                        RichText::new("✔ Installed")
+                                        RichText::new("Installed")
                                             .size(12.0)
                                             .strong()
                                             .color(title_col),
                                     );
                                 } else if ide_queued {
                                     ui.add_enabled_ui(false, |ui| {
-                                        let _ = p.centered_button(
+                                        let _ = p.icon_button(
                                             ui,
-                                            Vec2::new(98.0, 28.0),
-                                            "⏳ Queued",
+                                            SMALL_ACTION_BTN_SIZE,
+                                            Some(AppIcon::Download),
+                                            false,
+                                            "Queued",
                                             12.0,
                                             p.navy_core,
                                             p.cream_core,
                                             Stroke::new(1.0_f32, p.border_subtle),
-                                            6.0,
+                                            SMALL_ROUNDING,
                                         );
                                     });
                                     ui.add_space(6.0);
                                     ui.spinner();
                                 } else {
                                     if p
-                                        .centered_button(
+                                        .icon_button(
                                             ui,
-                                            Vec2::new(98.0, 28.0),
-                                            "⬇ Install",
+                                            SMALL_ACTION_BTN_SIZE,
+                                            Some(AppIcon::Download),
+                                            false,
+                                            "Install",
                                             12.5,
                                             p.navy_core,
                                             p.cream_core,
                                             Stroke::new(1.0_f32, p.gold_core),
-                                            6.0,
+                                            SMALL_ROUNDING,
                                         )
                                         .clicked()
                                     {
@@ -946,18 +1046,20 @@ impl ContestLockdownApp {
                     ui.set_width(half_w);
                     ui.add_enabled_ui(!selected_missing.is_empty(), |ui| {
                         if p
-                            .centered_button(
+                            .icon_button(
                                 ui,
-                                Vec2::new(half_w, 38.0),
+                                Vec2::new(half_w, PRIMARY_CTA_HEIGHT),
+                                Some(AppIcon::Download),
+                                false,
                                 &format!(
-                                    "⬇ Install Selected Missing IDEs ({})",
+                                    "Install Selected Missing IDEs ({})",
                                     selected_missing.len()
                                 ),
                                 13.5,
                                 p.gold_core,
                                 p.text_on_gold,
                                 Stroke::new(1.2_f32, p.cream_core),
-                                8.0,
+                                STD_ROUNDING,
                             )
                             .clicked()
                         {
@@ -981,18 +1083,20 @@ impl ContestLockdownApp {
                     ui.set_width(half_w);
                     ui.add_enabled_ui(!selected_installed.is_empty(), |ui| {
                         if p
-                            .centered_button(
+                            .icon_button(
                                 ui,
-                                Vec2::new(half_w, 38.0),
+                                Vec2::new(half_w, PRIMARY_CTA_HEIGHT),
+                                Some(AppIcon::Play),
+                                false,
                                 &format!(
-                                    "🚀 Launch Selected Installed IDEs ({})",
+                                    "Launch Selected Installed IDEs ({})",
                                     selected_installed.len()
                                 ),
                                 13.5,
                                 p.gold_core,
                                 p.text_on_gold,
                                 Stroke::new(1.2_f32, p.cream_core),
-                                8.0,
+                                STD_ROUNDING,
                             )
                             .clicked()
                         {
@@ -1015,7 +1119,7 @@ impl ContestLockdownApp {
     }
 
     // ========================================================================
-    // TAB 2: AUTOMATED DESKTOP VIDEO RECORDING (BALANCED SPACING)
+    // TAB 2: AUTOMATED DESKTOP VIDEO RECORDING
     // ========================================================================
     fn render_page_2_recording(
         &mut self,
@@ -1030,6 +1134,7 @@ impl ContestLockdownApp {
             ui.set_width(ui.available_width());
 
             ui.horizontal(|ui| {
+                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
                 ui.label(
                     RichText::new("Automated Desktop Video Recording")
                         .size(18.0)
@@ -1039,16 +1144,37 @@ impl ContestLockdownApp {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if is_installing_ffmpeg {
-                        p.badge(ui, "⏳ Installing FFmpeg...", p.warning_fg, p.warning_bg);
+                        p.uniform_badge(
+                            ui,
+                            HEADER_BTN_SIZE,
+                            Some(AppIcon::Download),
+                            "Installing...",
+                            p.warning_fg,
+                            p.warning_bg,
+                        );
                     } else if ffmpeg_ok {
-                        p.badge(ui, "✔ FFmpeg Ready", p.success_fg, p.success_bg);
+                        p.uniform_badge(
+                            ui,
+                            HEADER_BTN_SIZE,
+                            Some(AppIcon::Check),
+                            "FFmpeg Ready",
+                            p.success_fg,
+                            p.success_bg,
+                        );
                     } else {
-                        p.badge(ui, "⚠ FFmpeg Missing", p.warning_fg, p.warning_bg);
+                        p.uniform_badge(
+                            ui,
+                            HEADER_BTN_SIZE,
+                            Some(AppIcon::Close),
+                            "FFmpeg Missing",
+                            p.warning_fg,
+                            p.warning_bg,
+                        );
                     }
                 });
             });
 
-            ui.add_space(8.0);
+            ui.add_space(6.0);
             ui.separator();
             ui.add_space(10.0);
 
@@ -1080,15 +1206,17 @@ impl ContestLockdownApp {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if p
-                        .centered_button(
+                        .icon_button(
                             ui,
-                            Vec2::new(210.0, 38.0),
-                            "📂 Open Recordings Folder",
+                            INPUT_BAR_BTN_SIZE,
+                            Some(AppIcon::Folder),
+                            false,
+                            "Open Folder",
                             13.5,
                             p.gold_core,
                             p.text_on_gold,
                             Stroke::NONE,
-                            8.0,
+                            STD_ROUNDING,
                         )
                         .clicked()
                     {
@@ -1103,7 +1231,7 @@ impl ContestLockdownApp {
                         egui::TextEdit::singleline(&mut self.recordings_dir)
                             .hint_text("recordings")
                             .font(FontId::proportional(15.0))
-                            .margin(Margin::symmetric(12.0, 9.0))
+                            .margin(Margin::symmetric(12.0, 8.0))
                             .desired_width(ui.available_width()),
                     );
                 });
@@ -1167,15 +1295,17 @@ impl ContestLockdownApp {
                     ui.add_space(12.0);
                     ui.vertical_centered(|ui| {
                         if p
-                            .centered_button(
+                            .icon_button(
                                 ui,
-                                Vec2::new(310.0, 38.0),
-                                "⬇ Install FFmpeg Engine Automatically",
+                                Vec2::new(310.0, PRIMARY_CTA_HEIGHT),
+                                Some(AppIcon::Download),
+                                false,
+                                "Install FFmpeg Engine Automatically",
                                 13.5,
                                 p.gold_core,
                                 p.text_on_gold,
                                 Stroke::new(1.2_f32, p.cream_core),
-                                8.0,
+                                STD_ROUNDING,
                             )
                             .clicked()
                         {
@@ -1191,7 +1321,7 @@ impl ContestLockdownApp {
     }
 
     // ========================================================================
-    // TAB 3: WEBSITE WHITELIST & BROWSER POLICY (BALANCED SPACING & CENTERED CARDS)
+    // TAB 3: WEBSITE WHITELIST & BROWSER POLICY
     // ========================================================================
     fn render_page_3_website(&mut self, ui: &mut egui::Ui, p: AppPalette) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
@@ -1201,6 +1331,7 @@ impl ContestLockdownApp {
             ui.set_width(ui.available_width());
 
             ui.horizontal(|ui| {
+                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
                 ui.label(
                     RichText::new("Website Whitelist & Browser Policy")
                         .size(18.0)
@@ -1209,9 +1340,11 @@ impl ContestLockdownApp {
                 );
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    p.badge(
+                    p.uniform_badge(
                         ui,
-                        &format!("🌐 {} Allowed Site(s)", total_sites),
+                        HEADER_BTN_SIZE,
+                        Some(AppIcon::Globe),
+                        &format!("{} Allowed", total_sites),
                         p.text_on_gold,
                         p.gold_core,
                     );
@@ -1236,29 +1369,30 @@ impl ContestLockdownApp {
                 ui.add_space(6.0);
 
                 ui.horizontal(|ui| {
-                    // Left fixed 90x38 centered prefix pill
                     let _ = p.centered_button(
                         ui,
-                        Vec2::new(90.0, 38.0),
+                        Vec2::new(92.0, INPUT_BAR_BTN_SIZE.y),
                         "https://",
-                        14.5,
+                        14.0,
                         p.gold_core,
                         p.text_on_gold,
                         Stroke::NONE,
-                        8.0,
+                        STD_ROUNDING,
                     );
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if p
-                            .centered_button(
+                            .icon_button(
                                 ui,
-                                Vec2::new(135.0, 38.0),
-                                "🌐 Test Link",
+                                INPUT_BAR_BTN_SIZE,
+                                Some(AppIcon::Globe),
+                                false,
+                                "Test Link",
                                 13.5,
                                 p.gold_core,
                                 p.text_on_gold,
                                 Stroke::NONE,
-                                8.0,
+                                STD_ROUNDING,
                             )
                             .on_hover_text("Open this URL in your browser to verify")
                             .clicked()
@@ -1273,7 +1407,7 @@ impl ContestLockdownApp {
                             egui::TextEdit::singleline(&mut self.domain_input)
                                 .hint_text("bapsoj.org")
                                 .font(FontId::proportional(15.0))
-                                .margin(Margin::symmetric(12.0, 9.0))
+                                .margin(Margin::symmetric(12.0, 8.0))
                                 .desired_width(ui.available_width()),
                         );
                     });
@@ -1309,14 +1443,11 @@ impl ContestLockdownApp {
                     ui.spacing_mut().item_spacing.x = card_gap;
                     for (domain, label) in presets {
                         let is_enabled = self.extra_domains.iter().any(|d| d == domain);
-                        let prefix = if is_enabled { "✔" } else { "+" };
-                        let line1 = format!("{} {}", prefix, label);
-
                         if p
                             .centered_two_line_card(
                                 ui,
                                 Vec2::new(card_w, 44.0),
-                                &line1,
+                                label,
                                 domain,
                                 is_enabled,
                             )
@@ -1331,15 +1462,17 @@ impl ContestLockdownApp {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let add_clicked = p
-                        .centered_button(
+                        .icon_button(
                             ui,
-                            Vec2::new(150.0, 38.0),
-                            "+ Add Domain",
+                            INPUT_BAR_BTN_SIZE,
+                            Some(AppIcon::Plus),
+                            false,
+                            "Add Domain",
                             13.5,
                             p.gold_core,
                             p.text_on_gold,
                             Stroke::NONE,
-                            8.0,
+                            STD_ROUNDING,
                         )
                         .clicked();
 
@@ -1347,7 +1480,7 @@ impl ContestLockdownApp {
                         egui::TextEdit::singleline(&mut self.new_extra_domain_input)
                             .hint_text("Custom domain (e.g. docs.python.org)")
                             .font(FontId::proportional(15.0))
-                            .margin(Margin::symmetric(12.0, 9.0))
+                            .margin(Margin::symmetric(12.0, 8.0))
                             .desired_width(ui.available_width()),
                     );
 
@@ -1365,28 +1498,24 @@ impl ContestLockdownApp {
                     ui.horizontal_wrapped(|ui| {
                         let mut remove_idx = None;
                         for (idx, dom) in self.extra_domains.iter().enumerate() {
-                            egui::Frame::none()
-                                .fill(p.gold_core)
-                                .rounding(Rounding::same(6.0))
-                                .inner_margin(Margin::symmetric(10.0, 4.0))
-                                .show(ui, |ui| {
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            RichText::new(dom)
-                                                .size(12.0)
-                                                .strong()
-                                                .color(p.text_on_gold),
-                                        );
-                                        if ui
-                                            .small_button(
-                                                RichText::new("✕").color(p.text_on_gold),
-                                            )
-                                            .clicked()
-                                        {
-                                            remove_idx = Some(idx);
-                                        }
-                                    });
-                                });
+                            if p
+                                .icon_button(
+                                    ui,
+                                    Vec2::new(148.0, 28.0),
+                                    Some(AppIcon::Close),
+                                    true,
+                                    dom,
+                                    12.0,
+                                    p.gold_core,
+                                    p.text_on_gold,
+                                    Stroke::NONE,
+                                    SMALL_ROUNDING,
+                                )
+                                .on_hover_text("Click to remove domain")
+                                .clicked()
+                            {
+                                remove_idx = Some(idx);
+                            }
                         }
                         if let Some(i) = remove_idx {
                             self.extra_domains.remove(i);
@@ -1471,13 +1600,13 @@ impl ContestLockdownApp {
                                 if p
                                     .centered_button(
                                         ui,
-                                        Vec2::new(btn_w, 34.0),
+                                        Vec2::new(btn_w, 30.0),
                                         label,
                                         12.5,
                                         fill,
                                         fg,
                                         border,
-                                        6.0,
+                                        SMALL_ROUNDING,
                                     )
                                     .clicked()
                                 {
@@ -1492,7 +1621,7 @@ impl ContestLockdownApp {
     }
 
     // ========================================================================
-    // TAB 4: SET SESSION PASSWORD & ACTIVATE LOCKDOWN (BALANCED SPACING)
+    // TAB 4: SET SESSION PASSWORD & ACTIVATE LOCKDOWN
     // ========================================================================
     fn render_page_4_activate(&mut self, ui: &mut egui::Ui, p: AppPalette) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
@@ -1500,17 +1629,20 @@ impl ContestLockdownApp {
         p.card_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
 
-            ui.label(
-                RichText::new("Set Session Password & Activate Lockdown")
-                    .size(18.0)
-                    .strong()
-                    .color(title_col),
-            );
+            ui.horizontal(|ui| {
+                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
+                ui.label(
+                    RichText::new("Set Session Password & Activate Lockdown")
+                        .size(18.0)
+                        .strong()
+                        .color(title_col),
+                );
+            });
             ui.add_space(6.0);
             ui.separator();
             ui.add_space(8.0);
 
-            // Summary Box of Pages 1, 2, and 3 with centered right-aligned Edit buttons
+            // Summary Box of Pages 1, 2, and 3 with uniform SMALL_ACTION_BTN_SIZE (104x30) Edit buttons
             p.sub_card_frame().show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 ui.label(
@@ -1572,15 +1704,17 @@ impl ContestLockdownApp {
                         ui.label(RichText::new(text).size(13.5).color(p.text_primary));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if p
-                                .centered_button(
+                                .icon_button(
                                     ui,
-                                    Vec2::new(76.0, 26.0),
+                                    SMALL_ACTION_BTN_SIZE,
+                                    Some(AppIcon::Edit),
+                                    false,
                                     "Edit",
                                     12.0,
                                     p.bg_card,
                                     p.text_primary,
                                     Stroke::new(1.0_f32, p.border_subtle),
-                                    6.0,
+                                    SMALL_ROUNDING,
                                 )
                                 .clicked()
                             {
@@ -1614,21 +1748,23 @@ impl ContestLockdownApp {
                             .color(title_col),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let show_label = if self.show_lock_password {
-                            "🙈 Hide"
+                        let (eye_icon, show_label) = if self.show_lock_password {
+                            (AppIcon::EyeOff, "Hide")
                         } else {
-                            "👁 Show"
+                            (AppIcon::Eye, "Show")
                         };
                         if p
-                            .centered_button(
+                            .icon_button(
                                 ui,
-                                Vec2::new(90.0, 26.0),
+                                SMALL_ACTION_BTN_SIZE,
+                                Some(eye_icon),
+                                false,
                                 show_label,
                                 12.0,
                                 p.bg_card,
                                 p.text_primary,
                                 Stroke::new(1.0_f32, p.border_subtle),
-                                6.0,
+                                SMALL_ROUNDING,
                             )
                             .clicked()
                         {
@@ -1641,7 +1777,7 @@ impl ContestLockdownApp {
                 // Row 1: Set Session Password
                 ui.horizontal(|ui| {
                     ui.allocate_ui_with_layout(
-                        Vec2::new(150.0, 38.0),
+                        Vec2::new(150.0, 36.0),
                         egui::Layout::left_to_right(egui::Align::Center),
                         |ui| {
                             ui.label(
@@ -1655,7 +1791,7 @@ impl ContestLockdownApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.allocate_ui_with_layout(
-                            Vec2::new(125.0, 38.0),
+                            Vec2::new(125.0, 36.0),
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
                                 ui.label(
@@ -1672,7 +1808,7 @@ impl ContestLockdownApp {
                                 .password(!self.show_lock_password)
                                 .hint_text("Enter session password")
                                 .font(FontId::proportional(15.0))
-                                .margin(Margin::symmetric(12.0, 9.0))
+                                .margin(Margin::symmetric(12.0, 8.0))
                                 .desired_width(ui.available_width()),
                         );
                     });
@@ -1683,7 +1819,7 @@ impl ContestLockdownApp {
                 // Row 2: Confirm Password
                 ui.horizontal(|ui| {
                     ui.allocate_ui_with_layout(
-                        Vec2::new(150.0, 38.0),
+                        Vec2::new(150.0, 36.0),
                         egui::Layout::left_to_right(egui::Align::Center),
                         |ui| {
                             ui.label(
@@ -1697,20 +1833,20 @@ impl ContestLockdownApp {
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.allocate_ui_with_layout(
-                            Vec2::new(125.0, 38.0),
+                            Vec2::new(125.0, 36.0),
                             egui::Layout::right_to_left(egui::Align::Center),
                             |ui| {
                                 if !self.lock_password_confirm.is_empty() {
                                     if self.lock_password_input == self.lock_password_confirm {
                                         ui.label(
-                                            RichText::new("✔ Match")
+                                            RichText::new("Match")
                                                 .size(12.5)
                                                 .strong()
                                                 .color(title_col),
                                         );
                                     } else {
                                         ui.label(
-                                            RichText::new("✕ Mismatch")
+                                            RichText::new("Mismatch")
                                                 .size(12.5)
                                                 .strong()
                                                 .color(Color32::from_rgb(255, 120, 120)),
@@ -1731,7 +1867,7 @@ impl ContestLockdownApp {
                                 .password(!self.show_lock_password)
                                 .hint_text("Re-enter password")
                                 .font(FontId::proportional(15.0))
-                                .margin(Margin::symmetric(12.0, 9.0))
+                                .margin(Margin::symmetric(12.0, 8.0))
                                 .desired_width(ui.available_width()),
                         );
                         if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -1744,11 +1880,13 @@ impl ContestLockdownApp {
             ui.add_space(16.0);
             ui.vertical_centered(|ui| {
                 if p
-                    .centered_button(
+                    .icon_button(
                         ui,
-                        Vec2::new(460.0, 44.0),
-                        "🔒 Set Session Password & Activate Lockdown",
-                        16.0,
+                        Vec2::new(460.0, PRIMARY_CTA_HEIGHT + 4.0),
+                        Some(AppIcon::Lock),
+                        false,
+                        "Set Session Password & Activate Lockdown",
+                        15.5,
                         p.gold_core,
                         p.text_on_gold,
                         Stroke::new(1.5_f32, p.cream_core),
@@ -1771,11 +1909,11 @@ impl ContestLockdownApp {
         p.banner_frame(p.danger_bg, p.gold_core).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(40.0));
+                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_HEADER_SIZE));
                 ui.add_space(8.0);
                 ui.vertical(|ui| {
                     ui.label(
-                        RichText::new("🔒 PROCTORX LOCKDOWN ACTIVE")
+                        RichText::new("PROCTORX LOCKDOWN ACTIVE")
                             .size(17.0)
                             .strong()
                             .color(p.gold_core),
@@ -1795,9 +1933,11 @@ impl ContestLockdownApp {
                         let hrs = rem_secs / 3600;
                         let mins = (rem_secs % 3600) / 60;
                         let secs = rem_secs % 60;
-                        p.badge(
+                        p.uniform_badge(
                             ui,
-                            &format!("⏱ {:02}:{:02}:{:02}", hrs, mins, secs),
+                            HEADER_BTN_SIZE,
+                            None,
+                            &format!("{:02}:{:02}:{:02}", hrs, mins, secs),
                             p.warning_fg,
                             p.warning_bg,
                         );
@@ -1810,23 +1950,54 @@ impl ContestLockdownApp {
 
         p.card_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(
-                RichText::new("Quick Actions")
-                    .size(15.5)
-                    .strong()
-                    .color(title_col),
-            );
+            ui.horizontal(|ui| {
+                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
+                ui.label(
+                    RichText::new("Quick Actions")
+                        .size(15.5)
+                        .strong()
+                        .color(title_col),
+                );
+            });
             ui.add_space(8.0);
 
             ui.horizontal_wrapped(|ui| {
                 for dom in self.session.all_allowed_domains() {
-                    if ui.button(format!("🌐 Open {}", dom)).clicked() {
+                    if p
+                        .icon_button(
+                            ui,
+                            INPUT_BAR_BTN_SIZE,
+                            Some(AppIcon::Globe),
+                            false,
+                            &dom,
+                            13.0,
+                            p.gold_core,
+                            p.text_on_gold,
+                            Stroke::NONE,
+                            STD_ROUNDING,
+                        )
+                        .clicked()
+                    {
                         let _ = open_allowed_website(&dom);
                     }
                 }
 
                 for ide_name in self.session.all_selected_ides() {
-                    if ui.button(format!("💻 Launch {}", ide_name)).clicked() {
+                    if p
+                        .icon_button(
+                            ui,
+                            INPUT_BAR_BTN_SIZE,
+                            Some(AppIcon::Play),
+                            false,
+                            &ide_name,
+                            13.0,
+                            p.gold_core,
+                            p.text_on_gold,
+                            Stroke::NONE,
+                            STD_ROUNDING,
+                        )
+                        .clicked()
+                    {
                         match IdeChoice::from_name(&ide_name).launch() {
                             Ok(m) => self.push_log(m, false),
                             Err(e) => self.push_log(e, true),
@@ -1834,7 +2005,21 @@ impl ContestLockdownApp {
                     }
                 }
 
-                if ui.button("📂 Recordings Folder").clicked() {
+                if p
+                    .icon_button(
+                        ui,
+                        INPUT_BAR_BTN_SIZE,
+                        Some(AppIcon::Folder),
+                        false,
+                        "Recordings",
+                        13.0,
+                        p.navy_core,
+                        p.cream_core,
+                        Stroke::new(1.0_f32, p.gold_core),
+                        STD_ROUNDING,
+                    )
+                    .clicked()
+                {
                     let _ = ScreenRecorder::open_recordings_folder(&self.recordings_dir);
                 }
             });
@@ -1844,17 +2029,20 @@ impl ContestLockdownApp {
 
         p.card_frame().show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(
-                RichText::new("Unlock Contest Environment")
-                    .size(15.5)
-                    .strong()
-                    .color(title_col),
-            );
+            ui.horizontal(|ui| {
+                p.draw_logo_image(ui, &self.logo_texture, Vec2::splat(LOGO_CARD_SIZE));
+                ui.label(
+                    RichText::new("Unlock Contest Environment")
+                        .size(15.5)
+                        .strong()
+                        .color(title_col),
+                );
+            });
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
                 ui.allocate_ui_with_layout(
-                    Vec2::new(145.0, 38.0),
+                    Vec2::new(145.0, 36.0),
                     egui::Layout::left_to_right(egui::Align::Center),
                     |ui| {
                         ui.label(
@@ -1867,21 +2055,23 @@ impl ContestLockdownApp {
                 );
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let show_label = if self.show_unlock_password {
-                        "🙈 Hide"
+                    let (eye_icon, show_label) = if self.show_unlock_password {
+                        (AppIcon::EyeOff, "Hide")
                     } else {
-                        "👁 Show"
+                        (AppIcon::Eye, "Show")
                     };
                     if p
-                        .centered_button(
+                        .icon_button(
                             ui,
-                            Vec2::new(90.0, 38.0),
+                            SMALL_ACTION_BTN_SIZE,
+                            Some(eye_icon),
+                            false,
                             show_label,
-                            13.0,
+                            12.5,
                             p.bg_card_subtle,
                             p.text_primary,
                             Stroke::new(1.0_f32, p.border_subtle),
-                            8.0,
+                            SMALL_ROUNDING,
                         )
                         .clicked()
                     {
@@ -1893,7 +2083,7 @@ impl ContestLockdownApp {
                             .password(!self.show_unlock_password)
                             .hint_text("Enter session password")
                             .font(FontId::proportional(15.0))
-                            .margin(Margin::symmetric(12.0, 9.0))
+                            .margin(Margin::symmetric(12.0, 8.0))
                             .desired_width(ui.available_width()),
                     );
                     if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -1905,10 +2095,12 @@ impl ContestLockdownApp {
             ui.add_space(14.0);
             ui.vertical_centered(|ui| {
                 if p
-                    .centered_button(
+                    .icon_button(
                         ui,
-                        Vec2::new(380.0, 44.0),
-                        "🔓 Verify Password & Unlock",
+                        Vec2::new(400.0, PRIMARY_CTA_HEIGHT + 4.0),
+                        Some(AppIcon::Unlock),
+                        false,
+                        "Verify Password & Unlock",
                         15.5,
                         p.gold_core,
                         p.text_on_gold,
