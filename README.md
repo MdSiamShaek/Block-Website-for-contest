@@ -1,31 +1,45 @@
 # Block-Website-for-contest — Cross-Platform Rust Contest Lockdown & Proctoring Suite
 
-A cross-platform **Rust Desktop GUI application** (`eframe` / `egui`) for programming contests and lab environments. It locks down web browsers to a single chosen domain via OS-level Browser Enterprise Policies, installs and launches a chosen IDE, starts full-screen desktop video recording automatically, and requires a **dynamic per-session password** (hashed with SHA-256) set at lock time to unlock.
+A cross-platform **Rust Desktop GUI application** (`eframe` / `egui`) for programming contests and lab environments. It restricts web browsers to a chosen contest domain (plus optional reference sites like `cppreference.com`), installs and launches a chosen IDE, starts full-screen desktop video recording automatically, and requires a **dynamic per-session password** (hashed with SHA-256) set at lock time to unlock.
+
+---
+
+## Color-Theory Driven GUI (`src/theme.rs`)
+
+The interface is designed around the **60-30-10 Rule**, **Split-Complementary Color Harmony**, and **WCAG AAA Contrast Ratios**:
+- **60% Dominant Canvas:** Deep Midnight Slate (`#0B0F19`) in Dark Mode / Cool Alabaster (`#F1F5F9`) in Daylight Mode — low-saturation blue-slate minimizes eye fatigue during 3–5 hour programming contests.
+- **30% Secondary Elevated Cards:** Layered Slate Navy (`#161F32`) with subtle `1px` borders (`#2A3854`) and rounded `10px` cards to group controls cleanly into four logical stages.
+- **10% Semantic & Interactive Accents:**
+  - **Primary Interactive Brand:** Royal Indigo (`#4F46E5`) paired with Sky Cyan (`#38BDF8`) for primary calls-to-action, active borders, and section headers.
+  - **Safe / Unlocked / Installed Badges:** Emerald Teal (`#34D399` foreground on `#064E3B` pill fill).
+  - **Active Lockdown / Live Recording Badges:** Crimson Rose (`#FB7185` foreground on `#4C0519` pill fill) for instant visual recognition.
+  - **Warning / Background Installer Badges:** Warm Amber (`#FBBF24` foreground on `#451A03` pill fill).
+- Includes a one-click **Dark / Light Theme Toggle** in the top header bar.
 
 ---
 
 ## Core Features
 
 1. **Dynamic Per-Session Password Protection (`src/state.rs`)**
-   - Every time you enable a lockdown, the app asks you to set and confirm a **Session Password**.
+   - Every time you enable a lockdown, the app prompts you to set and confirm a **Session Password** (with a Show/Hide `👁` toggle and live **Password Strength Meter**).
    - The password is immediately hashed in memory using **SHA-256** and persisted to `session_lock.json` (plaintext is never stored).
-   - Unlocking the browser policies and stopping the recording requires entering that exact password—even if the app window is closed and reopened during the contest.
+   - Includes a **Window Close Guard** that prevents accidentally closing the app while a contest lockdown is active.
 
-2. **Cross-Platform Browser Policy Lockdown (`src/policy.rs`)**
-   - **Windows:** Configures `URLBlocklist = ["*"]` and `URLAllowlist = ["<domain>", "*.<domain>"]` across Chrome, Edge, and Brave (`HKLM\SOFTWARE\Policies\...`), configures Mozilla Firefox `WebsiteFilter`, sets `DownloadRestrictions` (allowing safe `.txt`/`.zip` contest problem files while blocking `.exe`/`.msi` installers, or blocking all downloads), and blocks portable browsers via Windows Explorer `DisallowRun`.
-   - **macOS:** Writes managed preference `.plist` rules under `/Library/Preferences` for Chrome, Brave, and Edge via native macOS Administrator elevation (`osascript`), and restarts running browsers.
-   - **Linux:** Writes managed policy JSON files to `/etc/opt/chrome/policies/managed/whitelist.json`, `/etc/chromium/policies/managed/whitelist.json`, and `/etc/brave/policies/managed/whitelist.json`.
-   - Automatically opens the whitelisted contest website in the browser when lockdown begins.
+2. **Multi-Domain Browser Policy Lockdown & Contest Timer (`src/policy.rs`)**
+   - Whitelists your primary contest domain (e.g. `bapsoj.org`) plus optional one-click reference domains (`cppreference.com`, `codeforces.com`, `atcoder.jp`, `vjudge.net`, or custom domains).
+   - **Windows:** Configures `URLBlocklist = ["*"]` and `URLAllowlist` across Chrome, Edge, Brave, and Vivaldi (`HKLM\SOFTWARE\Policies\...`), configures Mozilla Firefox `WebsiteFilter`, sets `DownloadRestrictions`, and blocks portable browsers via Windows Explorer `DisallowRun`.
+   - **macOS:** Writes managed preference `.plist` rules under `/Library/Preferences` for Chrome, Brave, Edge, and Vivaldi, plus Firefox `distribution/policies.json`, via native macOS Administrator elevation (`osascript`).
+   - **Linux:** Writes managed policy JSON files for Chrome, Chromium, Brave, Edge, and Firefox (`/etc/firefox/policies/policies.json`).
+   - **Optional Auto-Unlock Contest Timer:** Choose Manual Only, 1 Hour, 2 Hours, 3 Hours, or 5 Hours with a live countdown badge.
 
-3. **Supported IDE Selector, Silent Installer & Launcher (`src/ide.rs`)**
+3. **IDE Selector, Live Background Installer & Launcher (`src/ide.rs`)**
    - Supports **Visual Studio Code**, **Code::Blocks**, **CP Editor**, **Sublime Text**, and **JetBrains CLion**.
-   - Automatically detects if the chosen IDE is installed on Windows (`where`), macOS (`/Applications/*.app`), or Linux (`which`).
-   - One-click or automatic silent installation via `winget` (Windows), `brew install --cask` (macOS), or `apt`/`snap` (Linux), plus automatic IDE launch on contest start.
+   - Detects installations across PATH, `/Applications` & `~/Applications` (macOS), and `Program Files` & `LocalAppData` (Windows).
+   - Tracks background installations asynchronously (`IdeInstallTracker`) with a live spinner and elapsed timer, and automatically launches the IDE once installation completes.
 
-4. **Automatic Background Screen Recording (`src/recorder.rs`)**
-   - Automatically records the full desktop screen into timestamped `.mp4` files inside `recordings/` using FFmpeg (`gdigrab` on Windows, `avfoundation` on macOS, `x11grab` on Linux).
-   - Displays a live `REC HH:MM:SS` timer in the GUI and gracefully finalizes the MP4 trailer (`q\n` over `stdin`) when the session is unlocked.
-   - Includes a one-click **Install FFmpeg** button if FFmpeg is not yet installed on the machine.
+4. **Automated Desktop Video Recording (`src/recorder.rs`)**
+   - Automatically records the full desktop into timestamped `.mp4` files inside `recordings/` using FFmpeg (`gdigrab` on Windows, dynamically detected `avfoundation` screen index on macOS, `x11grab` on Linux).
+   - Displays a live `⏺ REC HH:MM:SS` badge in the top bar, provides a one-click **Open Folder** button, and implements `Drop` cleanup so MP4 files finalize cleanly (`q\n` over `stdin`) even on unexpected exit.
 
 ---
 
@@ -35,11 +49,12 @@ A cross-platform **Rust Desktop GUI application** (`eframe` / `egui`) for progra
 Block-Website-for-contest/
 ├── Cargo.toml                        # Rust package & dependencies (eframe, egui, sha2, serde, chrono)
 ├── src/
-│   ├── main.rs                       # Cross-platform Desktop GUI (eframe/egui)
-│   ├── state.rs                      # Per-session SHA-256 password hashing & session_lock.json persistence
+│   ├── main.rs                       # Cross-platform Desktop GUI & session workflow
+│   ├── theme.rs                      # 60-30-10 Color-Theory Dark & Light palettes and custom widgets
+│   ├── state.rs                      # Per-session SHA-256 password hashing, timer & state persistence
 │   ├── policy.rs                     # Windows Registry, macOS plist, and Linux JSON browser policy engine
-│   ├── ide.rs                        # Cross-platform IDE detection, silent installer & launcher
-│   └── recorder.rs                   # Background FFmpeg screen recorder & live timer
+│   ├── ide.rs                        # Cross-platform IDE detector, background installer tracker & launcher
+│   └── recorder.rs                   # Background FFmpeg screen recorder, device detector & Drop cleanup
 ├── .github/workflows/build.yml       # GitHub Actions CI building Windows .exe, macOS, and Linux binaries
 └── legacy_scripts/                   # Original standalone C++, PowerShell, macOS & Linux scripts
 ```
@@ -48,11 +63,6 @@ Block-Website-for-contest/
 
 ## Building & Running Locally
 
-### Prerequisites
-- [Rust Toolchain (`rustup` / `cargo`)](https://rustup.rs/)
-- Optional: [FFmpeg](https://ffmpeg.org/) (can also be installed directly from the app GUI)
-
-### Compile and Run
 ```bash
 # Run in development mode
 cargo run
@@ -60,16 +70,3 @@ cargo run
 # Build optimized release executable
 cargo build --release
 ```
-
-- **Windows Release Binary:** `target\release\contest_lockdown.exe` (Run as Administrator so Registry policy edits succeed)
-- **macOS Release Binary:** `target/release/contest_lockdown`
-- **Linux Release Binary:** `target/release/contest_lockdown`
-
----
-
-## Downloading Prebuilt Binaries (GitHub Actions)
-
-Every push to `main` triggers the **Build Cross-Platform Binaries** GitHub Actions workflow (`.github/workflows/build.yml`), which automatically compiles:
-- `contest_lockdown-windows-x86_64.exe` (Windows)
-- `contest_lockdown-macos-arm64` (macOS)
-- `contest_lockdown-linux-x86_64` (Linux)
