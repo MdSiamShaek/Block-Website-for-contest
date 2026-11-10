@@ -1,5 +1,5 @@
 use eframe::egui::{
-    self, Color32, IconData, Margin, Pos2, RichText, Rounding, Shape, Stroke, Style, Vec2, Visuals,
+    self, Color32, IconData, Margin, Pos2, Rect, RichText, Rounding, Stroke, Style, Vec2, Visuals,
 };
 use std::sync::Arc;
 
@@ -38,6 +38,28 @@ pub struct AppPalette {
     pub warning_bg: Color32,
 }
 
+/// 15x17 100% mirror-symmetrical pixel-art matrix of the ProctorX V-Chevron / Keyhole emblem
+/// from `ProctorX Pixel Keyhole Logo.png`. Every row is strictly palindromic (left == right).
+pub const PROCTORX_PIXEL_EMBLEM: [&str; 17] = [
+    "...##.....##...",
+    "..##.......##..",
+    "..##.......##..",
+    "..##.......##..",
+    "...##.....##...",
+    "...##.....##...",
+    "....##...##....",
+    "....##...##....",
+    "..####...####..",
+    "...###...###...",
+    "....##...##....",
+    "....###.###....",
+    ".....##.##.....",
+    ".....#####.....",
+    "......###......",
+    "......###......",
+    ".......#.......",
+];
+
 impl AppPalette {
     /// Navy Mode (Default): `#0D3B66` Deep Navy canvas, `#FAF0CA` Warm Cream text, `#F4D35E` Sunshine Gold accents.
     pub fn dark() -> Self {
@@ -51,7 +73,7 @@ impl AppPalette {
             cream_core,
             gold_core,
             bg_canvas: navy_core,                              // #0D3B66
-            bg_header: Color32::from_rgb(11, 50, 88),          // #0B3258
+            bg_header: Color32::from_rgb(8, 36, 66),           // #082442
             bg_card: Color32::from_rgb(18, 73, 124),           // #12497C
             bg_card_subtle: Color32::from_rgb(24, 88, 148),    // #185894
             bg_input: Color32::from_rgb(8, 38, 68),            // #082644
@@ -59,7 +81,7 @@ impl AppPalette {
             text_primary: cream_core,                          // #FAF0CA
             text_secondary: Color32::from_rgb(224, 214, 178),  // #E0D6B2
             text_muted: Color32::from_rgb(172, 188, 204),      // #ACBCCC
-            text_on_gold: Color32::from_rgb(9, 43, 76),        // #092B4C
+            text_on_gold: Color32::from_rgb(8, 36, 66),        // #082442
             accent_primary: gold_core,                         // #F4D35E
             accent_hover: Color32::from_rgb(249, 224, 130),    // #F9E082
             success_fg: cream_core,                            // #FAF0CA
@@ -161,7 +183,7 @@ impl AppPalette {
         ctx.set_style(style);
     }
 
-    /// Returns a styled container card Frame.
+    /// Returns a styled container card Frame with symmetrical margins.
     pub fn card_frame(&self) -> egui::Frame {
         let stroke_color = if self.is_dark {
             self.gold_core.gamma_multiply(0.45)
@@ -175,7 +197,7 @@ impl AppPalette {
             .inner_margin(Margin::symmetric(20.0, 18.0))
     }
 
-    /// Returns a clean sub-section card Frame for nested groups.
+    /// Returns a clean sub-section card Frame with symmetrical margins.
     pub fn sub_card_frame(&self) -> egui::Frame {
         egui::Frame::none()
             .fill(self.bg_input)
@@ -205,108 +227,91 @@ impl AppPalette {
             });
     }
 
-    /// Draws the rounded-square ProctorX Shield + Checkmark Icon matching the user's reference screenshot:
-    /// - Rounded square border in `#F4D35E` Sunshine Gold on `#0D3B66` Deep Navy fill
-    /// - Inner geometric shield in `#F4D35E` Sunshine Gold with a crisp checkmark inside
-    pub fn draw_proctorx_shield_badge(&self, ui: &mut egui::Ui, size: f32) {
+    /// Draws the exact **ProctorX Pixel Keyhole Logo** from the user's image,
+    /// mathematically centered and 100% bilaterally mirror-symmetrical:
+    /// - Deep Navy (`#0D3B66`) rounded-square interior
+    /// - Bold Sunshine Gold (`#F4D35E`) rounded-square frame
+    /// - 15x17 palindromic pixel-art V-Keyhole emblem centered inside the square
+    pub fn draw_proctorx_pixel_logo(&self, ui: &mut egui::Ui, size: f32) {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
         let painter = ui.painter_at(rect);
 
-        // 1. Rounded square container (#0D3B66 fill, #F4D35E border)
-        let box_rounding = Rounding::same((size * 0.25).max(8.0));
+        let border_w = (size * 0.068).max(2.0);
+        let box_rounding = Rounding::same((size * 0.22).max(6.0));
+
+        // 1. Rounded-square background & bold gold border
         painter.rect(
-            rect.shrink(1.0),
+            rect.shrink(border_w * 0.5),
             box_rounding,
-            self.navy_core,
-            Stroke::new((size * 0.042).max(1.6), self.gold_core),
+            Color32::from_rgb(6, 28, 56),
+            Stroke::new(border_w, self.gold_core),
         );
 
-        let c = rect.center();
-        let r = size * 0.27;
+        // 2. Render the 15x17 mirror-symmetric pixel grid centered at `rect.center()`
+        let cols = 15_usize;
+        let rows = 17_usize;
+        let pixel_size = (size * 0.54) / (rows as f32);
+        let grid_w = (cols as f32) * pixel_size;
+        let grid_h = (rows as f32) * pixel_size;
+        let start_x = rect.center().x - grid_w * 0.5;
+        let start_y = rect.center().y - grid_h * 0.5;
 
-        // 2. Shield outline inside the rounded square
-        let shield_pts = vec![
-            Pos2::new(c.x, c.y - r * 0.95),                // Top center crest
-            Pos2::new(c.x + r * 0.78, c.y - r * 0.58),     // Top-right corner
-            Pos2::new(c.x + r * 0.72, c.y + r * 0.18),     // Mid-right flank
-            Pos2::new(c.x, c.y + r * 0.95),                // Bottom tip
-            Pos2::new(c.x - r * 0.72, c.y + r * 0.18),     // Mid-left flank
-            Pos2::new(c.x - r * 0.78, c.y - r * 0.58),     // Top-left corner
-        ];
-        painter.add(Shape::closed_line(
-            shield_pts,
-            Stroke::new((size * 0.048).max(1.8), self.gold_core),
-        ));
-
-        // 3. Crisp Checkmark inside the shield
-        let check_pts = vec![
-            Pos2::new(c.x - r * 0.32, c.y + r * 0.02),
-            Pos2::new(c.x - r * 0.06, c.y + r * 0.28),
-            Pos2::new(c.x + r * 0.36, c.y - r * 0.22),
-        ];
-        painter.add(Shape::line(
-            check_pts,
-            Stroke::new((size * 0.048).max(1.8), self.gold_core),
-        ));
+        for (r_idx, row_str) in PROCTORX_PIXEL_EMBLEM.iter().enumerate() {
+            for (c_idx, ch) in row_str.chars().enumerate() {
+                if ch == '#' {
+                    let min = Pos2::new(
+                        start_x + (c_idx as f32) * pixel_size,
+                        start_y + (r_idx as f32) * pixel_size,
+                    );
+                    let max = Pos2::new(min.x + pixel_size + 0.3, min.y + pixel_size + 0.3);
+                    painter.rect_filled(Rect::from_min_max(min, max), Rounding::ZERO, self.gold_core);
+                }
+            }
+        }
     }
 
-    /// Renders the inline **ProctorX** brand title (`Proctor` in `#FAF0CA` Cream + `X` in `#F4D35E` Gold).
-    pub fn render_proctorx_wordmark(&self, ui: &mut egui::Ui, font_size: f32) {
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 0.0;
-            ui.label(
-                RichText::new("Proctor")
-                    .size(font_size)
-                    .strong()
-                    .color(self.cream_core),
-            );
-            ui.label(
-                RichText::new("X")
-                    .size(font_size)
-                    .strong()
-                    .color(self.gold_core),
-            );
-        });
+    /// Creates a centered `LayoutJob` for the two-tone **ProctorX** wordmark (`Proctor` in `#FAF0CA` + `X` in `#F4D35E`).
+    pub fn proctorx_wordmark_job(&self, font_size: f32) -> egui::text::LayoutJob {
+        let mut job = egui::text::LayoutJob::default();
+        job.append(
+            "Proctor",
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(font_size),
+                color: self.cream_core,
+                ..Default::default()
+            },
+        );
+        job.append(
+            "X",
+            0.0,
+            egui::TextFormat {
+                font_id: egui::FontId::proportional(font_size),
+                color: self.gold_core,
+                ..Default::default()
+            },
+        );
+        job
     }
 
-    /// Renders the centered **ProctorX** hero banner matching the user's screenshot:
-    /// - Rounded square Shield+Checkmark icon
-    /// - `ProctorX` wordmark
-    /// - `SECURE. MONITOR. CONTROL.` motto in `#F4D35E` Gold
-    /// - Subtle divider line + `Cross-Platform Contest Lockdown & Proctoring Suite` subtitle
+    /// Renders the 100% symmetrical, centered **ProctorX** hero banner on Page 4:
+    /// - Centered Rounded-Square Pixel Keyhole Logo
+    /// - Centered `ProctorX` wordmark
+    /// - Centered `SECURE. MONITOR. CONTROL.` motto
+    /// - Symmetrical full-width divider line
+    /// - Centered `Cross-Platform Contest Lockdown & Proctoring Suite` subtitle
     pub fn render_proctorx_hero_banner(&self, ui: &mut egui::Ui) {
         egui::Frame::none()
-            .fill(self.navy_core)
-            .stroke(Stroke::new(1.2_f32, self.gold_core.gamma_multiply(0.5)))
+            .fill(Color32::from_rgb(6, 28, 56))
+            .stroke(Stroke::new(1.2_f32, self.gold_core.gamma_multiply(0.55)))
             .rounding(Rounding::same(14.0))
             .inner_margin(Margin::symmetric(24.0, 14.0))
             .show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.vertical_centered(|ui| {
-                    self.draw_proctorx_shield_badge(ui, 52.0);
+                    self.draw_proctorx_pixel_logo(ui, 56.0);
                     ui.add_space(4.0);
-
-                    // Centered "ProctorX" title
-                    let mut job = egui::text::LayoutJob::default();
-                    job.append(
-                        "Proctor",
-                        0.0,
-                        egui::TextFormat {
-                            font_id: egui::FontId::proportional(24.0),
-                            color: self.cream_core,
-                            ..Default::default()
-                        },
-                    );
-                    job.append(
-                        "X",
-                        0.0,
-                        egui::TextFormat {
-                            font_id: egui::FontId::proportional(24.0),
-                            color: self.gold_core,
-                            ..Default::default()
-                        },
-                    );
-                    ui.label(job);
-
+                    ui.label(self.proctorx_wordmark_job(25.0));
                     ui.add_space(2.0);
                     ui.label(
                         RichText::new("SECURE. MONITOR. CONTROL.")
@@ -327,44 +332,56 @@ impl AppPalette {
     }
 }
 
-/// Generates a 64x64 RGBA native OS window & dock icon matching the ProctorX Shield+Checkmark logo
-/// in `#0D3B66` Deep Navy, `#FAF0CA` Cream, and `#F4D35E` Sunshine Gold.
+/// Generates a 64x64 RGBA native OS window & dock icon matching the symmetrical
+/// **ProctorX Pixel Keyhole Logo** in `#0D3B66` Deep Navy and `#F4D35E` Sunshine Gold.
 pub fn build_window_icon() -> Arc<IconData> {
     let w = 64_usize;
     let h = 64_usize;
     let mut rgba = vec![0_u8; w * h * 4];
 
-    let navy = [13_u8, 59, 102, 255];   // #0D3B66
-    let gold = [244_u8, 211, 94, 255];  // #F4D35E
+    let navy = [6_u8, 28, 56, 255];    // Deep Navy backdrop
+    let gold = [244_u8, 211, 94, 255]; // #F4D35E Sunshine Gold
 
     for y in 0..h {
         for x in 0..w {
+            // Use symmetric coordinates around center 31.5
             let fx = (x as f32 - 31.5) / 31.5;
             let fy = (y as f32 - 31.5) / 31.5;
             let idx = (y * w + x) * 4;
 
-            // Rounded square SDF
-            let qx = fx.abs() - 0.68;
-            let qy = fy.abs() - 0.68;
-            let r_dist = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 0.22;
+            // Symmetrical rounded square SDF
+            let qx = fx.abs() - 0.66;
+            let qy = fy.abs() - 0.66;
+            let r_dist =
+                (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 0.22;
 
             if r_dist <= 0.0 {
-                let mut color = navy;
-                if r_dist >= -0.065 {
-                    color = gold;
+                let color = if r_dist >= -0.095 {
+                    gold
                 } else {
-                    // Inner shield outline
-                    let ax = fx.abs();
-                    let shield_d = if fy < -0.05 {
-                        ax * 1.45 + (fy + 0.42).abs() * 0.55
-                    } else {
-                        ax * 1.55 + (fy + 0.05) * 1.05
-                    };
-                    if (0.42..=0.52).contains(&shield_d) && (-0.52..=0.55).contains(&fy) {
-                        color = gold;
+                    navy
+                };
+                rgba[idx..idx + 4].copy_from_slice(&color);
+            }
+        }
+    }
+
+    // Stamp the 15x17 symmetrical pixel emblem at 2x2 pixels per cell (30x34 centered at 17..47, 15..49)
+    let scale = 2_usize;
+    let start_x = (w - 15 * scale) / 2; // (64 - 30) / 2 = 17
+    let start_y = (h - 17 * scale) / 2; // (64 - 34) / 2 = 15
+
+    for (r_idx, row_str) in PROCTORX_PIXEL_EMBLEM.iter().enumerate() {
+        for (c_idx, ch) in row_str.chars().enumerate() {
+            if ch == '#' {
+                for dy in 0..scale {
+                    for dx in 0..scale {
+                        let px = start_x + c_idx * scale + dx;
+                        let py = start_y + r_idx * scale + dy;
+                        let idx = (py * w + px) * 4;
+                        rgba[idx..idx + 4].copy_from_slice(&gold);
                     }
                 }
-                rgba[idx..idx + 4].copy_from_slice(&color);
             }
         }
     }

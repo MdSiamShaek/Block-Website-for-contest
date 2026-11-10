@@ -81,8 +81,8 @@ impl WizardPage {
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([840.0, 740.0])
-            .with_min_inner_size([700.0, 620.0])
+            .with_inner_size([860.0, 760.0])
+            .with_min_inner_size([720.0, 640.0])
             .with_icon(build_window_icon())
             .with_title("ProctorX — Cross-Platform Contest Lockdown & Proctoring Suite"),
         ..Default::default()
@@ -447,40 +447,61 @@ impl eframe::App for ContestLockdownApp {
         }
 
         // ====================================================================
-        // TOP HEADER BAR WITH PROCTORX LOGO, MOTTO & SUBTITLE
+        // SYMMETRICAL 3-COLUMN TOP HEADER BAR WITH PROCTORX PIXEL KEYHOLE LOGO
         // ====================================================================
         egui::TopBottomPanel::top("header_panel")
             .frame(
                 egui::Frame::none()
                     .fill(p.bg_header)
                     .stroke(Stroke::new(1.5_f32, p.gold_core))
-                    .inner_margin(Margin::symmetric(20.0, 12.0)),
+                    .inner_margin(Margin::symmetric(24.0, 12.0)),
             )
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    // Render the rounded-square ProctorX Shield+Checkmark icon
-                    p.draw_proctorx_shield_badge(ui, 48.0);
-                    ui.add_space(8.0);
-
-                    ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            p.render_proctorx_wordmark(ui, 23.0);
-                            ui.add_space(8.0);
-                            ui.label(
-                                RichText::new("— SECURE. MONITOR. CONTROL.")
-                                    .size(12.5)
-                                    .strong()
-                                    .color(p.gold_core),
+                ui.columns(3, |cols| {
+                    // Left Column: Symmetrical Status Badges
+                    cols[0].horizontal(|ui| {
+                        ui.add_space(2.0);
+                        if self.session.is_locked {
+                            p.badge(ui, "🔒 LOCKED", p.danger_fg, p.danger_bg);
+                        } else {
+                            p.badge(ui, "🔓 UNLOCKED", p.text_on_gold, p.gold_core);
+                        }
+                        if is_rec {
+                            p.badge(
+                                ui,
+                                &format!("⏺ REC {}", self.recorder.elapsed_formatted()),
+                                p.danger_fg,
+                                p.danger_bg,
                             );
-                        });
-                        ui.label(
-                            RichText::new("Cross-Platform Contest Lockdown & Proctoring Suite")
-                                .size(12.5)
-                                .color(p.cream_core),
-                        );
+                        } else {
+                            p.badge(ui, "⏹ Recorder Idle", p.cream_core, p.navy_core);
+                        }
                     });
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    // Center Column: Centered Symmetrical ProctorX Pixel Logo + Wordmark + Motto
+                    cols[1].vertical_centered(|ui| {
+                        ui.horizontal(|ui| {
+                            let total_w = 185.0;
+                            let avail = ui.available_width();
+                            if avail > total_w {
+                                ui.add_space((avail - total_w) * 0.5);
+                            }
+                            p.draw_proctorx_pixel_logo(ui, 42.0);
+                            ui.add_space(6.0);
+                            ui.vertical(|ui| {
+                                ui.label(p.proctorx_wordmark_job(22.0));
+                                ui.label(
+                                    RichText::new("SECURE. MONITOR. CONTROL.")
+                                        .size(10.5)
+                                        .strong()
+                                        .color(p.gold_core),
+                                );
+                            });
+                        });
+                    });
+
+                    // Right Column: Symmetrical Theme Toggle & Step Badge
+                    cols[2].with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let theme_label = if p.is_dark {
                             "☀ Cream Mode"
                         } else {
@@ -494,34 +515,28 @@ impl eframe::App for ContestLockdownApp {
                                         .strong()
                                         .color(p.text_on_gold),
                                 )
-                                .fill(p.gold_core),
+                                .fill(p.gold_core)
+                                .rounding(Rounding::same(10.0))
+                                .min_size(egui::vec2(115.0, 28.0)),
                             )
-                            .on_hover_text("Toggle between #0D3B66 Navy Mode and #FAF0CA Cream Mode")
+                            .on_hover_text("Switch between #0D3B66 Navy Mode and #FAF0CA Cream Mode")
                             .clicked()
                         {
                             self.toggle_theme(ctx);
                         }
 
-                        if is_rec {
+                        if !self.session.is_locked {
                             p.badge(
                                 ui,
-                                &format!("⏺ REC {}", self.recorder.elapsed_formatted()),
-                                p.danger_fg,
-                                p.danger_bg,
+                                &format!("Step {} / 4", self.current_page.step_number()),
+                                p.cream_core,
+                                p.navy_core,
                             );
-                        } else {
-                            p.badge(ui, "⏹ Recorder Idle", p.cream_core, p.navy_core);
-                        }
-
-                        if self.session.is_locked {
-                            p.badge(ui, "🔒 LOCKDOWN ACTIVE", p.danger_fg, p.danger_bg);
-                        } else {
-                            p.badge(ui, "🔓 UNLOCKED", p.text_on_gold, p.gold_core);
                         }
                     });
                 });
 
-                // 4-Page Stepper Navigation Bar (shown when Unlocked)
+                // Symmetrical 4-Column Stepper Bar (shown when Unlocked)
                 if !self.session.is_locked {
                     ui.add_space(10.0);
                     ui.columns(4, |cols| {
@@ -552,7 +567,7 @@ impl eframe::App for ContestLockdownApp {
                             .fill(fill)
                             .stroke(Stroke::new(1.2_f32, border_col))
                             .rounding(Rounding::same(8.0))
-                            .min_size(egui::vec2(cols[idx].available_width(), 34.0));
+                            .min_size(egui::vec2(cols[idx].available_width(), 36.0));
 
                             if cols[idx].add(btn).clicked() {
                                 self.current_page = *page;
@@ -563,66 +578,105 @@ impl eframe::App for ContestLockdownApp {
             });
 
         // ====================================================================
-        // BOTTOM NAVIGATION & ACTIVITY LOG PANEL
+        // SYMMETRICAL 3-COLUMN BOTTOM NAVIGATION & ACTIVITY LOG PANEL
         // ====================================================================
         egui::TopBottomPanel::bottom("footer_log_panel")
             .frame(
                 egui::Frame::none()
                     .fill(p.bg_header)
                     .stroke(Stroke::new(1.2_f32, p.gold_core.gamma_multiply(0.6)))
-                    .inner_margin(Margin::symmetric(20.0, 10.0)),
+                    .inner_margin(Margin::symmetric(24.0, 10.0)),
             )
             .show(ctx, |ui| {
                 if !self.session.is_locked {
-                    ui.horizontal(|ui| {
-                        if let Some(prev_page) = self.current_page.prev() {
-                            let back_btn = egui::Button::new(
-                                RichText::new(format!("← Back: {}", prev_page.short_tab_label()))
-                                    .size(13.5)
+                    ui.columns(3, |cols| {
+                        // Left Column: Back button (fixed 200x36 size on all pages for symmetry)
+                        cols[0].horizontal(|ui| {
+                            if let Some(prev_page) = self.current_page.prev() {
+                                let back_btn = egui::Button::new(
+                                    RichText::new(format!(
+                                        "← Back: {}",
+                                        prev_page.short_tab_label()
+                                    ))
+                                    .size(13.0)
                                     .strong()
                                     .color(p.cream_core),
-                            )
-                            .fill(p.navy_core)
-                            .stroke(Stroke::new(1.2_f32, p.gold_core))
-                            .rounding(Rounding::same(8.0))
-                            .min_size(egui::vec2(190.0, 34.0));
-
-                            if ui.add(back_btn).clicked() {
-                                self.current_page = prev_page;
-                            }
-                        }
-
-                        ui.label(
-                            RichText::new(format!(
-                                "Page {} of 4 — {}",
-                                self.current_page.step_number(),
-                                self.current_page.title()
-                            ))
-                            .size(12.5)
-                            .color(p.cream_core),
-                        );
-
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if let Some(next_page) = self.current_page.next() {
-                                let next_btn = egui::Button::new(
-                                    RichText::new(format!(
-                                        "Next: {} →",
-                                        next_page.short_tab_label()
-                                    ))
-                                    .size(13.5)
-                                    .strong()
-                                    .color(p.text_on_gold),
                                 )
-                                .fill(p.gold_core)
-                                .stroke(Stroke::new(1.2_f32, p.cream_core))
+                                .fill(p.navy_core)
+                                .stroke(Stroke::new(1.2_f32, p.gold_core))
                                 .rounding(Rounding::same(8.0))
-                                .min_size(egui::vec2(210.0, 34.0));
+                                .min_size(egui::vec2(200.0, 36.0));
 
-                                if ui.add(next_btn).clicked() {
-                                    self.current_page = next_page;
+                                if ui.add(back_btn).clicked() {
+                                    self.current_page = prev_page;
                                 }
+                            } else {
+                                ui.add_enabled(
+                                    false,
+                                    egui::Button::new(
+                                        RichText::new("← First Step").size(13.0),
+                                    )
+                                    .rounding(Rounding::same(8.0))
+                                    .min_size(egui::vec2(200.0, 36.0)),
+                                );
                             }
                         });
+
+                        // Center Column: Exactly Centered Page Title
+                        cols[1].vertical_centered(|ui| {
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new(format!(
+                                    "Page {} of 4 • {}",
+                                    self.current_page.step_number(),
+                                    self.current_page.title()
+                                ))
+                                .size(12.5)
+                                .strong()
+                                .color(p.cream_core),
+                            );
+                        });
+
+                        // Right Column: Next button (fixed 200x36 size on all pages for symmetry)
+                        cols[2].with_layout(
+                            egui::Layout::right_to_left(egui::Align::Center),
+                            |ui| {
+                                if let Some(next_page) = self.current_page.next() {
+                                    let next_btn = egui::Button::new(
+                                        RichText::new(format!(
+                                            "Next: {} →",
+                                            next_page.short_tab_label()
+                                        ))
+                                        .size(13.0)
+                                        .strong()
+                                        .color(p.text_on_gold),
+                                    )
+                                    .fill(p.gold_core)
+                                    .stroke(Stroke::new(1.2_f32, p.cream_core))
+                                    .rounding(Rounding::same(8.0))
+                                    .min_size(egui::vec2(200.0, 36.0));
+
+                                    if ui.add(next_btn).clicked() {
+                                        self.current_page = next_page;
+                                    }
+                                } else {
+                                    let lock_now_btn = egui::Button::new(
+                                        RichText::new("🔒 Activate Lockdown")
+                                            .size(13.0)
+                                            .strong()
+                                            .color(p.text_on_gold),
+                                    )
+                                    .fill(p.gold_core)
+                                    .stroke(Stroke::new(1.2_f32, p.cream_core))
+                                    .rounding(Rounding::same(8.0))
+                                    .min_size(egui::vec2(200.0, 36.0));
+
+                                    if ui.add(lock_now_btn).clicked() {
+                                        self.handle_start_lockdown();
+                                    }
+                                }
+                            },
+                        );
                     });
                     ui.add_space(6.0);
                     ui.separator();
@@ -646,9 +700,10 @@ impl eframe::App for ContestLockdownApp {
                     });
                 });
                 egui::ScrollArea::vertical()
-                    .max_height(56.0)
+                    .max_height(52.0)
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
                         for (line, is_err) in &self.status_log {
                             let color = if *is_err {
                                 Color32::from_rgb(255, 138, 138)
@@ -661,7 +716,7 @@ impl eframe::App for ContestLockdownApp {
             });
 
         // ====================================================================
-        // MAIN CENTRAL CONTENT (Renders Active Page 1..4 or Locked View)
+        // MAIN CENTRAL CONTENT (Symmetrical 24px Left/Right Margins)
         // ====================================================================
         egui::CentralPanel::default()
             .frame(
@@ -671,6 +726,7 @@ impl eframe::App for ContestLockdownApp {
             )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.set_width(ui.available_width());
                     if !self.session.is_locked {
                         match self.current_page {
                             WizardPage::IdeSetup => {
@@ -696,23 +752,25 @@ impl eframe::App for ContestLockdownApp {
 
 impl ContestLockdownApp {
     // ========================================================================
-    // PAGE 1: CONTEST IDE INSTALLER & LAUNCHER (MULTI-SELECT & BATCH INSTALL)
+    // PAGE 1: CONTEST IDE INSTALLER & LAUNCHER (SYMMETRICAL MULTI-SELECT)
     // ========================================================================
     fn render_page_1_ide(&mut self, ui: &mut egui::Ui, p: AppPalette, is_installing_ide: bool) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
 
         p.card_frame().show(ui, |ui| {
+            ui.set_width(ui.available_width());
+
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Page 1 of 4 • Contest IDE Installer & Launcher")
-                            .size(19.0)
+                            .size(18.5)
                             .strong()
                             .color(title_col),
                     );
                     ui.label(
                         RichText::new(
-                            "Select one or multiple IDEs for your contest environment. You can install or launch all selected IDEs together.",
+                            "Select one or multiple IDEs for your contest environment. Install or launch all selected IDEs together.",
                         )
                         .size(13.0)
                         .color(p.text_secondary),
@@ -744,13 +802,13 @@ impl ContestLockdownApp {
 
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("Select Contest IDEs (Multi-Select):")
+                    RichText::new("Available Contest IDEs (Check to Select):")
                         .size(14.0)
                         .strong()
                         .color(p.text_primary),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("Clear Selection").clicked() {
+                    if ui.small_button("Clear All").clicked() {
                         self.selected_ides.clear();
                     }
                     if ui.small_button("Select Installed").clicked() {
@@ -766,6 +824,7 @@ impl ContestLockdownApp {
             });
             ui.add_space(6.0);
 
+            // Render uniform, symmetrical IDE rows
             for ide in IdeChoice::ALL {
                 let mut is_checked = self.selected_ides.contains(&ide);
                 let ide_installed = ide.is_installed();
@@ -795,6 +854,7 @@ impl ContestLockdownApp {
                     .rounding(Rounding::same(8.0))
                     .inner_margin(Margin::symmetric(14.0, 9.0))
                     .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
                         ui.horizontal(|ui| {
                             if ui
                                 .checkbox(
@@ -818,14 +878,24 @@ impl ContestLockdownApp {
                                     .color(p.text_secondary),
                             );
 
+                            // Right-aligned uniform 96px action button + status label
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 if ide_installed {
-                                    if ui.small_button("🚀 Launch").clicked() {
+                                    let btn = egui::Button::new(
+                                        RichText::new("🚀 Launch")
+                                            .size(12.0)
+                                            .strong()
+                                            .color(p.text_on_gold),
+                                    )
+                                    .fill(p.gold_core)
+                                    .min_size(egui::vec2(96.0, 28.0));
+                                    if ui.add(btn).clicked() {
                                         match ide.launch() {
                                             Ok(m) => self.push_log(m, false),
                                             Err(e) => self.push_log(e, true),
                                         }
                                     }
+                                    ui.add_space(6.0);
                                     ui.label(
                                         RichText::new("✔ Installed")
                                             .size(12.0)
@@ -833,20 +903,32 @@ impl ContestLockdownApp {
                                             .color(title_col),
                                     );
                                 } else if ide_queued {
+                                    ui.add_enabled(
+                                        false,
+                                        egui::Button::new(
+                                            RichText::new("⏳ Queued").size(12.0),
+                                        )
+                                        .min_size(egui::vec2(96.0, 28.0)),
+                                    );
+                                    ui.add_space(6.0);
                                     ui.spinner();
-                                    ui.label(
-                                        RichText::new("Installing...")
+                                } else {
+                                    let btn = egui::Button::new(
+                                        RichText::new("⬇ Install")
                                             .size(12.0)
                                             .strong()
-                                            .color(title_col),
-                                    );
-                                } else {
-                                    if ui.small_button("⬇ Install").clicked() {
+                                            .color(p.cream_core),
+                                    )
+                                    .fill(p.navy_core)
+                                    .stroke(Stroke::new(1.0_f32, p.gold_core))
+                                    .min_size(egui::vec2(96.0, 28.0));
+                                    if ui.add(btn).clicked() {
                                         match self.ide_installer.enqueue_installs(&[ide], false) {
                                             Ok(m) => self.push_log(m, false),
                                             Err(e) => self.push_log(e, true),
                                         }
                                     }
+                                    ui.add_space(6.0);
                                     ui.label(
                                         RichText::new("Not Installed")
                                             .size(12.0)
@@ -873,69 +955,75 @@ impl ContestLockdownApp {
                 .collect();
 
             ui.add_space(8.0);
-            ui.horizontal_wrapped(|ui| {
-                if !selected_missing.is_empty() {
-                    let install_batch_btn = egui::Button::new(
-                        RichText::new(format!(
-                            "⬇ Install Selected Missing IDEs ({})",
-                            selected_missing.len()
-                        ))
-                        .size(13.5)
-                        .strong()
-                        .color(p.text_on_gold),
-                    )
-                    .fill(p.gold_core)
-                    .min_size(egui::vec2(250.0, 36.0));
 
-                    if ui.add(install_batch_btn).clicked() {
-                        match self
-                            .ide_installer
-                            .enqueue_installs(&selected_missing, false)
-                        {
+            // Symmetrical 2-Column Batch Action Buttons + Auto-Checkboxes
+            ui.columns(2, |cols| {
+                let install_btn = egui::Button::new(
+                    RichText::new(format!(
+                        "⬇ Install Selected Missing IDEs ({})",
+                        selected_missing.len()
+                    ))
+                    .size(13.5)
+                    .strong()
+                    .color(p.text_on_gold),
+                )
+                .fill(p.gold_core)
+                .rounding(Rounding::same(8.0))
+                .min_size(egui::vec2(cols[0].available_width(), 38.0));
+
+                if cols[0]
+                    .add_enabled(!selected_missing.is_empty(), install_btn)
+                    .clicked()
+                {
+                    match self
+                        .ide_installer
+                        .enqueue_installs(&selected_missing, false)
+                    {
+                        Ok(m) => self.push_log(m, false),
+                        Err(e) => self.push_log(e, true),
+                    }
+                }
+                cols[0].add_space(4.0);
+                cols[0].checkbox(
+                    &mut self.auto_install_ide,
+                    "Auto-install selected missing IDEs on Lockdown start",
+                );
+
+                let launch_btn = egui::Button::new(
+                    RichText::new(format!(
+                        "🚀 Launch Selected Installed IDEs ({})",
+                        selected_installed.len()
+                    ))
+                    .size(13.5)
+                    .strong()
+                    .color(p.text_on_gold),
+                )
+                .fill(p.gold_core)
+                .rounding(Rounding::same(8.0))
+                .min_size(egui::vec2(cols[1].available_width(), 38.0));
+
+                if cols[1]
+                    .add_enabled(!selected_installed.is_empty(), launch_btn)
+                    .clicked()
+                {
+                    for ide in &selected_installed {
+                        match ide.launch() {
                             Ok(m) => self.push_log(m, false),
                             Err(e) => self.push_log(e, true),
                         }
                     }
                 }
-
-                if !selected_installed.is_empty() {
-                    let launch_batch_btn = egui::Button::new(
-                        RichText::new(format!(
-                            "🚀 Launch Selected Installed IDEs ({})",
-                            selected_installed.len()
-                        ))
-                        .size(13.5)
-                        .strong()
-                        .color(p.text_on_gold),
-                    )
-                    .fill(p.gold_core)
-                    .min_size(egui::vec2(250.0, 36.0));
-
-                    if ui.add(launch_batch_btn).clicked() {
-                        for ide in &selected_installed {
-                            match ide.launch() {
-                                Ok(m) => self.push_log(m, false),
-                                Err(e) => self.push_log(e, true),
-                            }
-                        }
-                    }
-                }
+                cols[1].add_space(4.0);
+                cols[1].checkbox(
+                    &mut self.auto_launch_ide,
+                    "Auto-launch selected installed IDEs on Lockdown start",
+                );
             });
-
-            ui.add_space(8.0);
-            ui.checkbox(
-                &mut self.auto_install_ide,
-                "Automatically install all selected missing IDEs when Lockdown starts",
-            );
-            ui.checkbox(
-                &mut self.auto_launch_ide,
-                "Automatically launch all selected IDEs when Lockdown starts",
-            );
         });
     }
 
     // ========================================================================
-    // PAGE 2: AUTOMATED DESKTOP VIDEO RECORDING
+    // PAGE 2: AUTOMATED DESKTOP VIDEO RECORDING (SYMMETRICAL LAYOUT)
     // ========================================================================
     fn render_page_2_recording(
         &mut self,
@@ -947,11 +1035,13 @@ impl ContestLockdownApp {
         let ffmpeg_ok = ScreenRecorder::is_ffmpeg_available();
 
         p.card_frame().show(ui, |ui| {
+            ui.set_width(ui.available_width());
+
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Page 2 of 4 • Automated Desktop Video Recording")
-                            .size(19.0)
+                            .size(18.5)
                             .strong()
                             .color(title_col),
                     );
@@ -975,24 +1065,26 @@ impl ContestLockdownApp {
                 });
             });
 
-            ui.add_space(14.0);
-            ui.separator();
             ui.add_space(12.0);
+            ui.separator();
+            ui.add_space(10.0);
 
             p.sub_card_frame().show(ui, |ui| {
-                ui.checkbox(
-                    &mut self.auto_start_recording,
-                    RichText::new(
-                        "Start full-screen MP4 desktop video recording automatically when Lockdown begins",
-                    )
-                    .size(14.0)
-                    .strong(),
-                );
-                ui.add_space(4.0);
-                ui.checkbox(
-                    &mut self.recorder.capture_audio,
-                    "Include system/microphone audio track in recording (optional)",
-                );
+                ui.set_width(ui.available_width());
+
+                ui.columns(2, |cols| {
+                    cols[0].checkbox(
+                        &mut self.auto_start_recording,
+                        RichText::new("Auto-start full-screen MP4 recording on Lockdown")
+                            .size(13.5)
+                            .strong(),
+                    );
+                    cols[1].checkbox(
+                        &mut self.recorder.capture_audio,
+                        RichText::new("Include system/microphone audio track (optional)")
+                            .size(13.5),
+                    );
+                });
 
                 ui.add_space(12.0);
                 ui.label(
@@ -1003,11 +1095,12 @@ impl ContestLockdownApp {
                 );
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    let input_w = (ui.available_width() - 210.0).max(260.0);
+                    let btn_w = 210.0;
+                    let input_w = (ui.available_width() - btn_w - 10.0).max(240.0);
                     ui.add(
                         egui::TextEdit::singleline(&mut self.recordings_dir)
                             .hint_text("recordings")
-                            .font(FontId::proportional(14.5))
+                            .font(FontId::proportional(15.0))
                             .margin(Margin::symmetric(12.0, 9.0))
                             .desired_width(input_w),
                     );
@@ -1018,7 +1111,8 @@ impl ContestLockdownApp {
                             .color(p.text_on_gold),
                     )
                     .fill(p.gold_core)
-                    .min_size(egui::vec2(195.0, 36.0));
+                    .rounding(Rounding::same(8.0))
+                    .min_size(egui::vec2(btn_w, 38.0));
 
                     if ui.add(folder_btn).clicked() {
                         if let Err(e) = ScreenRecorder::open_recordings_folder(&self.recordings_dir) {
@@ -1030,70 +1124,81 @@ impl ContestLockdownApp {
 
             ui.add_space(12.0);
             p.sub_card_frame().show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.label(
                     RichText::new("Recording Engine Specifications")
                         .size(13.5)
                         .strong()
                         .color(title_col),
                 );
-                ui.add_space(4.0);
-                ui.label(
-                    RichText::new(
-                        "• Format: H.264 MP4 (libx264 ultrafast, CRF 28, 15 FPS) — ~100 MB per hour",
-                    )
-                    .size(12.5)
-                    .color(p.text_secondary),
-                );
-                ui.label(
-                    RichText::new(
-                        "• Capture Backend: Windows GDI (gdigrab) • macOS AVFoundation • Linux X11 (x11grab)",
-                    )
-                    .size(12.5)
-                    .color(p.text_secondary),
-                );
-                ui.label(
-                    RichText::new(
-                        "• Crash-Safe Finalization: Sends graceful 'q' command on unlock so MP4 headers never corrupt",
-                    )
-                    .size(12.5)
-                    .color(p.text_secondary),
-                );
+                ui.add_space(6.0);
+                ui.columns(3, |cols| {
+                    cols[0].vertical_centered(|ui| {
+                        ui.label(RichText::new("H.264 MP4 Encoder").strong().color(p.text_primary));
+                        ui.label(
+                            RichText::new("libx264 ultrafast • 15 FPS\n~100 MB per hour")
+                                .size(12.0)
+                                .color(p.text_secondary),
+                        );
+                    });
+                    cols[1].vertical_centered(|ui| {
+                        ui.label(RichText::new("Cross-OS Capture").strong().color(p.text_primary));
+                        ui.label(
+                            RichText::new("Win GDI • macOS AVFound.\nLinux X11 Desktop")
+                                .size(12.0)
+                                .color(p.text_secondary),
+                        );
+                    });
+                    cols[2].vertical_centered(|ui| {
+                        ui.label(RichText::new("Crash-Safe Finalize").strong().color(p.text_primary));
+                        ui.label(
+                            RichText::new("Graceful 'q' signal on exit\nZero corrupted files")
+                                .size(12.0)
+                                .color(p.text_secondary),
+                        );
+                    });
+                });
 
                 if !ffmpeg_ok && !is_installing_ffmpeg {
-                    ui.add_space(10.0);
-                    let ff_btn = egui::Button::new(
-                        RichText::new("⬇ Install FFmpeg Engine Automatically")
-                            .size(13.5)
-                            .strong()
-                            .color(p.text_on_gold),
-                    )
-                    .fill(p.gold_core)
-                    .min_size(egui::vec2(260.0, 36.0));
+                    ui.add_space(12.0);
+                    ui.vertical_centered(|ui| {
+                        let ff_btn = egui::Button::new(
+                            RichText::new("⬇ Install FFmpeg Engine Automatically")
+                                .size(13.5)
+                                .strong()
+                                .color(p.text_on_gold),
+                        )
+                        .fill(p.gold_core)
+                        .rounding(Rounding::same(8.0))
+                        .min_size(egui::vec2(300.0, 38.0));
 
-                    if ui.add(ff_btn).clicked() {
-                        match self.recorder.start_ffmpeg_install() {
-                            Ok(m) => self.push_log(m, false),
-                            Err(e) => self.push_log(e, true),
+                        if ui.add(ff_btn).clicked() {
+                            match self.recorder.start_ffmpeg_install() {
+                                Ok(m) => self.push_log(m, false),
+                                Err(e) => self.push_log(e, true),
+                            }
                         }
-                    }
+                    });
                 }
             });
         });
     }
 
     // ========================================================================
-    // PAGE 3: WEBSITE WHITELIST & BROWSER POLICY (CLEAN 3-SECTION DESIGN)
+    // PAGE 3: WEBSITE WHITELIST & BROWSER POLICY (SYMMETRICAL 3-PANEL LAYOUT)
     // ========================================================================
     fn render_page_3_website(&mut self, ui: &mut egui::Ui, p: AppPalette) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
         let total_sites = 1 + self.extra_domains.len();
 
         p.card_frame().show(ui, |ui| {
+            ui.set_width(ui.available_width());
+
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("Page 3 of 4 • Website Whitelist & Browser Policy")
-                            .size(19.0)
+                            .size(18.5)
                             .strong()
                             .color(title_col),
                     );
@@ -1119,9 +1224,10 @@ impl ContestLockdownApp {
             ui.add_space(12.0);
 
             // ----------------------------------------------------------------
-            // SUB-PANEL 1: PRIMARY CONTEST DOMAIN (PROPORTIONED FULL-WIDTH INPUT)
+            // SUB-PANEL 1: PRIMARY CONTEST DOMAIN (SYMMETRICAL FULL-WIDTH BAR)
             // ----------------------------------------------------------------
             p.sub_card_frame().show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("Primary Contest Platform")
@@ -1140,21 +1246,24 @@ impl ContestLockdownApp {
                 ui.add_space(6.0);
 
                 ui.horizontal(|ui| {
-                    egui::Frame::none()
+                    let prefix_w = 88.0;
+                    let test_btn_w = 135.0;
+
+                    ui.add_enabled(
+                        false,
+                        egui::Button::new(
+                            RichText::new("https://")
+                                .size(14.5)
+                                .strong()
+                                .monospace()
+                                .color(p.text_on_gold),
+                        )
                         .fill(p.gold_core)
                         .rounding(Rounding::same(8.0))
-                        .inner_margin(Margin::symmetric(12.0, 9.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new("https://")
-                                    .size(14.5)
-                                    .strong()
-                                    .monospace()
-                                    .color(p.text_on_gold),
-                            );
-                        });
+                        .min_size(egui::vec2(prefix_w, 38.0)),
+                    );
 
-                    let domain_w = (ui.available_width() - 140.0).max(260.0);
+                    let domain_w = (ui.available_width() - test_btn_w - 10.0).max(220.0);
                     ui.add(
                         egui::TextEdit::singleline(&mut self.domain_input)
                             .hint_text("bapsoj.org")
@@ -1170,7 +1279,8 @@ impl ContestLockdownApp {
                             .color(p.text_on_gold),
                     )
                     .fill(p.gold_core)
-                    .min_size(egui::vec2(125.0, 36.0));
+                    .rounding(Rounding::same(8.0))
+                    .min_size(egui::vec2(test_btn_w, 38.0));
 
                     if ui
                         .add(test_btn)
@@ -1191,6 +1301,7 @@ impl ContestLockdownApp {
             // SUB-PANEL 2: REFERENCE & DOCUMENTATION WHITELIST
             // ----------------------------------------------------------------
             p.sub_card_frame().show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("Reference & Judge Whitelist (Click to Toggle)")
@@ -1256,11 +1367,12 @@ impl ContestLockdownApp {
 
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    let custom_w = (ui.available_width() - 180.0).max(260.0);
+                    let add_btn_w = 180.0;
+                    let custom_w = (ui.available_width() - add_btn_w - 10.0).max(220.0);
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut self.new_extra_domain_input)
                             .hint_text("Add custom domain (e.g. docs.python.org)")
-                            .font(FontId::proportional(14.5))
+                            .font(FontId::proportional(15.0))
                             .margin(Margin::symmetric(12.0, 9.0))
                             .desired_width(custom_w),
                     );
@@ -1271,7 +1383,8 @@ impl ContestLockdownApp {
                             .color(p.text_on_gold),
                     )
                     .fill(p.gold_core)
-                    .min_size(egui::vec2(168.0, 36.0));
+                    .rounding(Rounding::same(8.0))
+                    .min_size(egui::vec2(add_btn_w, 38.0));
 
                     let enter_pressed =
                         response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -1327,17 +1440,19 @@ impl ContestLockdownApp {
             ui.add_space(10.0);
 
             // ----------------------------------------------------------------
-            // SUB-PANEL 3: 2-COLUMN SPLIT FOR DOWNLOAD POLICY & CONTEST TIMER
+            // SUB-PANEL 3: SYMMETRICAL 2-COLUMN SPLIT (EQUAL HEIGHTS & WIDTHS)
             // ----------------------------------------------------------------
             ui.columns(2, |cols| {
                 p.sub_card_frame().show(&mut cols[0], |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.set_min_height(66.0);
                     ui.label(
                         RichText::new("Browser Download Policy")
                             .size(14.0)
                             .strong()
                             .color(title_col),
                     );
-                    ui.add_space(4.0);
+                    ui.add_space(6.0);
                     ui.radio_value(
                         &mut self.block_all_downloads,
                         false,
@@ -1351,22 +1466,44 @@ impl ContestLockdownApp {
                 });
 
                 p.sub_card_frame().show(&mut cols[1], |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.set_min_height(66.0);
                     ui.label(
                         RichText::new("Auto-Unlock Contest Timer")
                             .size(14.0)
                             .strong()
                             .color(title_col),
                     );
-                    ui.add_space(6.0);
-                    ui.horizontal_wrapped(|ui| {
-                        for (mins, label) in [
+                    ui.add_space(10.0);
+                    ui.columns(5, |t_cols| {
+                        for (idx, (mins, label)) in [
                             (0, "Manual"),
                             (60, "1h"),
                             (120, "2h"),
                             (180, "3h"),
                             (300, "5h"),
-                        ] {
-                            ui.selectable_value(&mut self.duration_minutes, mins, label);
+                        ]
+                        .iter()
+                        .enumerate()
+                        {
+                            let is_sel = self.duration_minutes == *mins;
+                            let btn = egui::Button::new(
+                                RichText::new(*label)
+                                    .size(12.5)
+                                    .strong()
+                                    .color(if is_sel {
+                                        p.text_on_gold
+                                    } else {
+                                        p.text_primary
+                                    }),
+                            )
+                            .fill(if is_sel { p.gold_core } else { p.bg_card })
+                            .rounding(Rounding::same(6.0))
+                            .min_size(egui::vec2(t_cols[idx].available_width(), 32.0));
+
+                            if t_cols[idx].add(btn).clicked() {
+                                self.duration_minutes = *mins;
+                            }
                         }
                     });
                 });
@@ -1375,26 +1512,31 @@ impl ContestLockdownApp {
     }
 
     // ========================================================================
-    // PAGE 4: SET SESSION PASSWORD & ACTIVATE LOCKDOWN
+    // PAGE 4: SET SESSION PASSWORD & ACTIVATE LOCKDOWN (SYMMETRICAL LAYOUT)
     // ========================================================================
     fn render_page_4_activate(&mut self, ui: &mut egui::Ui, p: AppPalette) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
 
-        // Centered ProctorX Hero Banner matching the user's reference screenshot
+        // Centered ProctorX Hero Banner with the Symmetrical Pixel Keyhole Logo
         p.render_proctorx_hero_banner(ui);
         ui.add_space(10.0);
 
         p.card_frame().show(ui, |ui| {
-            ui.label(
-                RichText::new("Page 4 of 4 • Set Session Password & Activate Lockdown")
-                    .size(18.5)
-                    .strong()
-                    .color(title_col),
-            );
+            ui.set_width(ui.available_width());
+
+            ui.vertical_centered(|ui| {
+                ui.label(
+                    RichText::new("Page 4 of 4 • Set Session Password & Activate Lockdown")
+                        .size(18.5)
+                        .strong()
+                        .color(title_col),
+                );
+            });
             ui.add_space(8.0);
 
-            // Summary Box of Pages 1, 2, and 3 with quick Edit buttons
+            // Summary Box of Pages 1, 2, and 3 with uniform right-aligned Edit buttons
             p.sub_card_frame().show(ui, |ui| {
+                ui.set_width(ui.available_width());
                 ui.label(
                     RichText::new("Pre-Flight Configuration Summary")
                         .size(13.5)
@@ -1420,7 +1562,9 @@ impl ContestLockdownApp {
                             .color(p.text_primary),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Edit Step 1").clicked() {
+                        let btn = egui::Button::new(RichText::new("Edit Step 1").size(11.5))
+                            .min_size(egui::vec2(92.0, 24.0));
+                        if ui.add(btn).clicked() {
                             self.current_page = WizardPage::IdeSetup;
                         }
                     });
@@ -1437,11 +1581,13 @@ impl ContestLockdownApp {
                             },
                             self.recordings_dir
                         ))
-                            .size(12.5)
-                            .color(p.text_primary),
+                        .size(12.5)
+                        .color(p.text_primary),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Edit Step 2").clicked() {
+                        let btn = egui::Button::new(RichText::new("Edit Step 2").size(11.5))
+                            .min_size(egui::vec2(92.0, 24.0));
+                        if ui.add(btn).clicked() {
                             self.current_page = WizardPage::VideoRecording;
                         }
                     });
@@ -1468,7 +1614,9 @@ impl ContestLockdownApp {
                         .color(p.text_primary),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.small_button("Edit Step 3").clicked() {
+                        let btn = egui::Button::new(RichText::new("Edit Step 3").size(11.5))
+                            .min_size(egui::vec2(92.0, 24.0));
+                        if ui.add(btn).clicked() {
                             self.current_page = WizardPage::WebsitePolicy;
                         }
                     });
@@ -1486,26 +1634,41 @@ impl ContestLockdownApp {
                 _ => Color32::from_rgb(110, 231, 183),
             };
 
+            // Symmetrical Full-Width Password Setup Card
             p.sub_card_frame().show(ui, |ui| {
-                egui::Grid::new("password_setup_grid")
-                    .num_columns(3)
-                    .spacing([12.0, 10.0])
-                    .show(ui, |ui| {
-                        ui.label(
-                            RichText::new("Set Session Password:")
-                                .size(14.5)
-                                .strong()
-                                .color(p.text_primary),
-                        );
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.lock_password_input)
-                                .password(!self.show_lock_password)
-                                .hint_text("Enter password to lock")
-                                .font(FontId::proportional(15.0))
-                                .margin(Margin::symmetric(12.0, 9.0))
-                                .desired_width(310.0),
-                        );
-                        ui.horizontal(|ui| {
+                ui.set_width(ui.available_width());
+                let label_col_w = 175.0;
+                let right_col_w = 195.0;
+                let pass_input_w =
+                    (ui.available_width() - label_col_w - right_col_w - 24.0).max(220.0);
+
+                ui.horizontal(|ui| {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(label_col_w, 38.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.label(
+                                RichText::new("Set Session Password:")
+                                    .size(14.5)
+                                    .strong()
+                                    .color(p.text_primary),
+                            );
+                        },
+                    );
+
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.lock_password_input)
+                            .password(!self.show_lock_password)
+                            .hint_text("Enter password to lock")
+                            .font(FontId::proportional(15.0))
+                            .margin(Margin::symmetric(12.0, 9.0))
+                            .desired_width(pass_input_w),
+                    );
+
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(right_col_w, 38.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
                             let show_btn = egui::Button::new(
                                 RichText::new(if self.show_lock_password {
                                     "🙈 Hide"
@@ -1515,56 +1678,71 @@ impl ContestLockdownApp {
                                 .size(13.0)
                                 .strong(),
                             )
-                            .min_size(egui::vec2(82.0, 36.0));
+                            .min_size(egui::vec2(82.0, 38.0));
                             if ui.add(show_btn).clicked() {
                                 self.show_lock_password = !self.show_lock_password;
                             }
                             if !self.lock_password_input.is_empty() {
                                 ui.label(
                                     RichText::new(format!("Strength: {}", strength_label))
-                                        .size(12.5)
+                                        .size(12.0)
                                         .strong()
                                         .color(strength_color),
                                 );
                             }
-                        });
-                        ui.end_row();
+                        },
+                    );
+                });
 
-                        ui.label(
-                            RichText::new("Confirm Password:")
-                                .size(14.5)
-                                .strong()
-                                .color(p.text_primary),
-                        );
-                        ui.add(
-                            egui::TextEdit::singleline(&mut self.lock_password_confirm)
-                                .password(!self.show_lock_password)
-                                .hint_text("Re-enter password")
-                                .font(FontId::proportional(15.0))
-                                .margin(Margin::symmetric(12.0, 9.0))
-                                .desired_width(310.0),
-                        );
-                        if !self.lock_password_confirm.is_empty() {
-                            if self.lock_password_input == self.lock_password_confirm {
-                                ui.label(
-                                    RichText::new("✔ Passwords Match")
-                                        .size(13.0)
-                                        .strong()
-                                        .color(title_col),
-                                );
-                            } else {
-                                ui.label(
-                                    RichText::new("✕ Does not match")
-                                        .size(13.0)
-                                        .strong()
-                                        .color(Color32::from_rgb(255, 120, 120)),
-                                );
+                ui.add_space(6.0);
+
+                ui.horizontal(|ui| {
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(label_col_w, 38.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            ui.label(
+                                RichText::new("Confirm Password:")
+                                    .size(14.5)
+                                    .strong()
+                                    .color(p.text_primary),
+                            );
+                        },
+                    );
+
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.lock_password_confirm)
+                            .password(!self.show_lock_password)
+                            .hint_text("Re-enter password")
+                            .font(FontId::proportional(15.0))
+                            .margin(Margin::symmetric(12.0, 9.0))
+                            .desired_width(pass_input_w),
+                    );
+
+                    ui.allocate_ui_with_layout(
+                        egui::vec2(right_col_w, 38.0),
+                        egui::Layout::left_to_right(egui::Align::Center),
+                        |ui| {
+                            if !self.lock_password_confirm.is_empty() {
+                                if self.lock_password_input == self.lock_password_confirm {
+                                    ui.label(
+                                        RichText::new("✔ Passwords Match")
+                                            .size(13.0)
+                                            .strong()
+                                            .color(title_col),
+                                    );
+                                } else {
+                                    ui.label(
+                                        RichText::new("✕ Does not match")
+                                            .size(13.0)
+                                            .strong()
+                                            .color(Color32::from_rgb(255, 120, 120)),
+                                    );
+                                }
                             }
-                        } else {
-                            ui.label("");
-                        }
-                        ui.end_row();
-                    });
+                        },
+                    );
+                });
             });
 
             ui.add_space(12.0);
@@ -1578,7 +1756,7 @@ impl ContestLockdownApp {
                 .fill(p.gold_core)
                 .stroke(Stroke::new(1.5_f32, p.cream_core))
                 .rounding(Rounding::same(10.0))
-                .min_size(egui::vec2(450.0, 44.0));
+                .min_size(egui::vec2(460.0, 44.0));
 
                 if ui.add(cta_button).clicked() {
                     self.handle_start_lockdown();
@@ -1594,9 +1772,10 @@ impl ContestLockdownApp {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
 
         p.banner_frame(p.danger_bg, p.gold_core).show(ui, |ui| {
+            ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
-                p.draw_proctorx_shield_badge(ui, 44.0);
-                ui.add_space(6.0);
+                p.draw_proctorx_pixel_logo(ui, 44.0);
+                ui.add_space(8.0);
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("🔒 PROCTORX CONTEST ENVIRONMENT LOCKED DOWN")
@@ -1633,6 +1812,7 @@ impl ContestLockdownApp {
         ui.add_space(12.0);
 
         p.card_frame().show(ui, |ui| {
+            ui.set_width(ui.available_width());
             ui.label(
                 RichText::new("Active Session Parameters & Quick Actions")
                     .size(16.0)
@@ -1701,6 +1881,7 @@ impl ContestLockdownApp {
         ui.add_space(14.0);
 
         p.card_frame().show(ui, |ui| {
+            ui.set_width(ui.available_width());
             ui.label(
                 RichText::new("Unlock Contest Environment")
                     .size(16.0)
@@ -1717,13 +1898,23 @@ impl ContestLockdownApp {
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Session Password:")
-                        .size(14.5)
-                        .strong()
-                        .color(p.text_primary),
+                let label_w = 150.0;
+                let show_w = 90.0;
+                let unlock_w = (ui.available_width() - label_w - show_w - 20.0).max(240.0);
+
+                ui.allocate_ui_with_layout(
+                    egui::vec2(label_w, 38.0),
+                    egui::Layout::left_to_right(egui::Align::Center),
+                    |ui| {
+                        ui.label(
+                            RichText::new("Session Password:")
+                                .size(14.5)
+                                .strong()
+                                .color(p.text_primary),
+                        );
+                    },
                 );
-                let unlock_w = (ui.available_width() - 110.0).max(260.0);
+
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut self.unlock_password_input)
                         .password(!self.show_unlock_password)
@@ -1732,6 +1923,7 @@ impl ContestLockdownApp {
                         .margin(Margin::symmetric(12.0, 9.0))
                         .desired_width(unlock_w),
                 );
+
                 let show_btn = egui::Button::new(
                     RichText::new(if self.show_unlock_password {
                         "🙈 Hide"
@@ -1741,7 +1933,7 @@ impl ContestLockdownApp {
                     .size(13.0)
                     .strong(),
                 )
-                .min_size(egui::vec2(85.0, 36.0));
+                .min_size(egui::vec2(show_w, 38.0));
                 if ui.add(show_btn).clicked() {
                     self.show_unlock_password = !self.show_unlock_password;
                 }
@@ -1761,7 +1953,7 @@ impl ContestLockdownApp {
                 .fill(p.gold_core)
                 .stroke(Stroke::new(1.5_f32, p.cream_core))
                 .rounding(Rounding::same(10.0))
-                .min_size(egui::vec2(450.0, 44.0));
+                .min_size(egui::vec2(460.0, 44.0));
 
                 if ui.add(unlock_btn).clicked() {
                     self.handle_unlock_session();
