@@ -304,10 +304,6 @@ impl IdeInstallTracker {
         }
     }
 
-    pub fn active_ide(&self) -> Option<IdeChoice> {
-        self.target_ide
-    }
-
     pub fn elapsed_secs(&self) -> u64 {
         self.started_at.map(|s| s.elapsed().as_secs()).unwrap_or(0)
     }

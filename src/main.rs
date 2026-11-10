@@ -16,11 +16,73 @@ use state::{
 use std::time::Duration;
 use theme::AppPalette;
 
+/// The 4 sequential pages requested by the user:
+/// 1. Contest IDE Installer & Launcher
+/// 2. Automated Desktop Video Recording
+/// 3. Website Whitelist & Browser Policy
+/// 4. Set Session Password & Activate Lockdown
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WizardPage {
+    IdeSetup = 0,
+    VideoRecording = 1,
+    WebsitePolicy = 2,
+    ActivateLockdown = 3,
+}
+
+impl WizardPage {
+    pub const ALL: [WizardPage; 4] = [
+        WizardPage::IdeSetup,
+        WizardPage::VideoRecording,
+        WizardPage::WebsitePolicy,
+        WizardPage::ActivateLockdown,
+    ];
+
+    pub fn step_number(&self) -> usize {
+        (*self as usize) + 1
+    }
+
+    pub fn title(&self) -> &'static str {
+        match self {
+            WizardPage::IdeSetup => "Contest IDE Installer & Launcher",
+            WizardPage::VideoRecording => "Automated Desktop Video Recording",
+            WizardPage::WebsitePolicy => "Website Whitelist & Browser Policy",
+            WizardPage::ActivateLockdown => "Set Session Password & Activate Lockdown",
+        }
+    }
+
+    pub fn short_tab_label(&self) -> &'static str {
+        match self {
+            WizardPage::IdeSetup => "1. IDE Installer",
+            WizardPage::VideoRecording => "2. Video Recording",
+            WizardPage::WebsitePolicy => "3. Website Whitelist",
+            WizardPage::ActivateLockdown => "4. Activate Lockdown",
+        }
+    }
+
+    pub fn next(&self) -> Option<WizardPage> {
+        match self {
+            WizardPage::IdeSetup => Some(WizardPage::VideoRecording),
+            WizardPage::VideoRecording => Some(WizardPage::WebsitePolicy),
+            WizardPage::WebsitePolicy => Some(WizardPage::ActivateLockdown),
+            WizardPage::ActivateLockdown => None,
+        }
+    }
+
+    pub fn prev(&self) -> Option<WizardPage> {
+        match self {
+            WizardPage::IdeSetup => None,
+            WizardPage::VideoRecording => Some(WizardPage::IdeSetup),
+            WizardPage::WebsitePolicy => Some(WizardPage::VideoRecording),
+            WizardPage::ActivateLockdown => Some(WizardPage::WebsitePolicy),
+        }
+    }
+}
+
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([760.0, 760.0])
-            .with_min_inner_size([640.0, 620.0])
+            .with_inner_size([780.0, 680.0])
+            .with_min_inner_size([660.0, 580.0])
             .with_title("Contest Lockdown & Proctoring Suite"),
         ..Default::default()
     };
@@ -35,22 +97,23 @@ fn main() -> eframe::Result<()> {
 struct ContestLockdownApp {
     session: LockdownSession,
     palette: AppPalette,
-    // Website Whitelist Inputs
+    current_page: WizardPage,
+    // Page 1: IDE Setup & Tracker
+    selected_ide: IdeChoice,
+    auto_install_ide: bool,
+    auto_launch_ide: bool,
+    ide_installer: IdeInstallTracker,
+    // Page 2: Video Recorder
+    auto_start_recording: bool,
+    recordings_dir: String,
+    recorder: ScreenRecorder,
+    // Page 3: Website Whitelist Inputs
     domain_input: String,
     extra_domains: Vec<String>,
     new_extra_domain_input: String,
     block_all_downloads: bool,
     duration_minutes: u32,
-    // IDE Setup & Tracker
-    selected_ide: IdeChoice,
-    auto_install_ide: bool,
-    auto_launch_ide: bool,
-    ide_installer: IdeInstallTracker,
-    // Video Recorder
-    auto_start_recording: bool,
-    recordings_dir: String,
-    recorder: ScreenRecorder,
-    // Session Passwords & Visibility Toggles
+    // Page 4: Session Passwords & Visibility Toggles
     lock_password_input: String,
     lock_password_confirm: String,
     show_lock_password: bool,
@@ -77,7 +140,8 @@ impl ContestLockdownApp {
         let duration_minutes = session.duration_minutes;
 
         let mut status_log = vec![(
-            "Ready. Configure your contest domain, IDE, and session password to start.".to_string(),
+            "Welcome! Complete the 4 steps in order to configure and activate your Contest Lockdown."
+                .to_string(),
             false,
         )];
 
@@ -94,11 +158,7 @@ impl ContestLockdownApp {
         Self {
             session,
             palette,
-            domain_input,
-            extra_domains,
-            new_extra_domain_input: String::new(),
-            block_all_downloads,
-            duration_minutes,
+            current_page: WizardPage::IdeSetup,
             selected_ide,
             auto_install_ide: false,
             auto_launch_ide: true,
@@ -106,6 +166,11 @@ impl ContestLockdownApp {
             auto_start_recording: true,
             recordings_dir: "recordings".to_string(),
             recorder: ScreenRecorder::new(),
+            domain_input,
+            extra_domains,
+            new_extra_domain_input: String::new(),
+            block_all_downloads,
+            duration_minutes,
             lock_password_input: String::new(),
             lock_password_confirm: String::new(),
             show_lock_password: false,
@@ -152,9 +217,10 @@ impl ContestLockdownApp {
         let clean_primary = normalize_domain(&self.domain_input);
         if clean_primary.is_empty() {
             self.push_log(
-                "Please enter a valid primary contest domain (e.g. bapsoj.org).",
+                "Please enter a valid primary contest domain on Page 3 (e.g. bapsoj.org).",
                 true,
             );
+            self.current_page = WizardPage::WebsitePolicy;
             return;
         }
         if self.lock_password_input.is_empty() {
@@ -278,6 +344,7 @@ impl ContestLockdownApp {
         let _ = LockdownSession::clear();
         self.unlock_password_input.clear();
         self.show_unlock_password = false;
+        self.current_page = WizardPage::IdeSetup;
         self.push_log(reason_msg, false);
     }
 
@@ -348,13 +415,13 @@ impl eframe::App for ContestLockdownApp {
         }
 
         // ====================================================================
-        // TOP HEADER BAR (60-30-10 Secondary Surface + Semantic Badges)
+        // TOP HEADER BAR (#0D3B66 Deep Navy + #FAF0CA Cream + #F4D35E Gold)
         // ====================================================================
         egui::TopBottomPanel::top("header_panel")
             .frame(
                 egui::Frame::none()
                     .fill(p.bg_header)
-                    .stroke(Stroke::new(1.0_f32, p.border_subtle))
+                    .stroke(Stroke::new(1.5_f32, p.gold_core))
                     .inner_margin(Margin::symmetric(20.0, 14.0)),
             )
             .show(ctx, |ui| {
@@ -364,27 +431,34 @@ impl eframe::App for ContestLockdownApp {
                             RichText::new("🛡 Contest Lockdown & Proctoring Suite")
                                 .size(20.0)
                                 .strong()
-                                .color(p.text_primary),
+                                .color(p.gold_core),
                         );
                         ui.label(
                             RichText::new(
-                                "Cross-Platform Browser Policy Enforcer • IDE Setup • Automated Screen Recorder",
+                                "Step-by-Step Contest Environment Setup • IDE • Video Recording • Browser Whitelist",
                             )
                             .size(12.5)
-                            .color(p.text_secondary),
+                            .color(p.cream_core),
                         );
                     });
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let theme_label = if p.is_dark { "☀ Light" } else { "🌙 Dark" };
+                        let theme_label = if p.is_dark {
+                            "☀ Cream Mode"
+                        } else {
+                            "🌙 Navy Mode"
+                        };
                         if ui
                             .add(
                                 egui::Button::new(
-                                    RichText::new(theme_label).size(12.0).color(p.text_primary),
+                                    RichText::new(theme_label)
+                                        .size(12.0)
+                                        .strong()
+                                        .color(p.text_on_gold),
                                 )
-                                .fill(p.bg_card_subtle),
+                                .fill(p.gold_core),
                             )
-                            .on_hover_text("Switch between Dark Slate and Daylight color themes")
+                            .on_hover_text("Toggle between #0D3B66 Navy Mode and #FAF0CA Cream Mode")
                             .clicked()
                         {
                             self.toggle_theme(ctx);
@@ -398,40 +472,135 @@ impl eframe::App for ContestLockdownApp {
                                 p.danger_bg,
                             );
                         } else {
-                            p.badge(ui, "⏹ Recorder Idle", p.text_secondary, p.bg_card_subtle);
+                            p.badge(ui, "⏹ Recorder Idle", p.cream_core, p.navy_core);
                         }
 
                         if self.session.is_locked {
                             p.badge(ui, "🔒 LOCKDOWN ACTIVE", p.danger_fg, p.danger_bg);
                         } else {
-                            p.badge(ui, "🔓 UNLOCKED", p.success_fg, p.success_bg);
+                            p.badge(ui, "🔓 UNLOCKED", p.text_on_gold, p.gold_core);
                         }
                     });
                 });
+
+                // 4-Page Stepper Navigation Bar (shown when Unlocked)
+                if !self.session.is_locked {
+                    ui.add_space(10.0);
+                    ui.columns(4, |cols| {
+                        for (idx, page) in WizardPage::ALL.iter().enumerate() {
+                            let is_active = self.current_page == *page;
+                            let fill = if is_active {
+                                p.gold_core
+                            } else {
+                                p.navy_core
+                            };
+                            let text_col = if is_active {
+                                p.text_on_gold
+                            } else {
+                                p.cream_core
+                            };
+                            let border_col = if is_active {
+                                p.cream_core
+                            } else {
+                                p.gold_core.gamma_multiply(0.55)
+                            };
+
+                            let btn = egui::Button::new(
+                                RichText::new(page.short_tab_label())
+                                    .size(13.0)
+                                    .strong()
+                                    .color(text_col),
+                            )
+                            .fill(fill)
+                            .stroke(Stroke::new(1.2_f32, border_col))
+                            .rounding(Rounding::same(8.0))
+                            .min_size(egui::vec2(cols[idx].available_width(), 34.0));
+
+                            if cols[idx].add(btn).clicked() {
+                                self.current_page = *page;
+                            }
+                        }
+                    });
+                }
             });
 
         // ====================================================================
-        // BOTTOM ACTIVITY LOG PANEL
+        // BOTTOM NAVIGATION & ACTIVITY LOG PANEL
         // ====================================================================
         egui::TopBottomPanel::bottom("footer_log_panel")
             .frame(
                 egui::Frame::none()
                     .fill(p.bg_header)
-                    .stroke(Stroke::new(1.0_f32, p.border_subtle))
+                    .stroke(Stroke::new(1.2_f32, p.gold_core.gamma_multiply(0.6)))
                     .inner_margin(Margin::symmetric(20.0, 10.0)),
             )
             .show(ctx, |ui| {
+                // Step Back / Next Navigation Bar (when unlocked)
+                if !self.session.is_locked {
+                    ui.horizontal(|ui| {
+                        if let Some(prev_page) = self.current_page.prev() {
+                            let back_btn = egui::Button::new(
+                                RichText::new(format!("← Back: {}", prev_page.short_tab_label()))
+                                    .size(13.5)
+                                    .strong()
+                                    .color(p.cream_core),
+                            )
+                            .fill(p.navy_core)
+                            .stroke(Stroke::new(1.2_f32, p.gold_core))
+                            .rounding(Rounding::same(8.0))
+                            .min_size(egui::vec2(190.0, 34.0));
+
+                            if ui.add(back_btn).clicked() {
+                                self.current_page = prev_page;
+                            }
+                        }
+
+                        ui.label(
+                            RichText::new(format!(
+                                "Page {} of 4 — {}",
+                                self.current_page.step_number(),
+                                self.current_page.title()
+                            ))
+                            .size(12.5)
+                            .color(p.cream_core),
+                        );
+
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if let Some(next_page) = self.current_page.next() {
+                                let next_btn = egui::Button::new(
+                                    RichText::new(format!(
+                                        "Next: {} →",
+                                        next_page.short_tab_label()
+                                    ))
+                                    .size(13.5)
+                                    .strong()
+                                    .color(p.text_on_gold),
+                                )
+                                .fill(p.gold_core)
+                                .stroke(Stroke::new(1.2_f32, p.cream_core))
+                                .rounding(Rounding::same(8.0))
+                                .min_size(egui::vec2(210.0, 34.0));
+
+                                if ui.add(next_btn).clicked() {
+                                    self.current_page = next_page;
+                                }
+                            }
+                        });
+                    });
+                    ui.add_space(6.0);
+                    ui.separator();
+                }
+
                 ui.horizontal(|ui| {
                     ui.label(
                         RichText::new("Activity & Audit Log")
-                            .size(12.0)
+                            .size(11.5)
                             .strong()
-                            .color(p.text_secondary),
+                            .color(p.gold_core),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .small_button("Clear Log")
-                            .on_hover_text("Clear status history")
+                            .small_button(RichText::new("Clear Log").color(p.text_primary))
                             .clicked()
                         {
                             self.status_log.clear();
@@ -439,35 +608,47 @@ impl eframe::App for ContestLockdownApp {
                         }
                     });
                 });
-                ui.add_space(4.0);
                 egui::ScrollArea::vertical()
-                    .max_height(78.0)
+                    .max_height(62.0)
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
                         for (line, is_err) in &self.status_log {
                             let color = if *is_err {
-                                p.danger_fg
+                                Color32::from_rgb(255, 138, 138)
                             } else {
-                                p.text_secondary
+                                p.cream_core
                             };
-                            ui.label(RichText::new(line).size(12.0).color(color).monospace());
+                            ui.label(RichText::new(line).size(11.5).color(color).monospace());
                         }
                     });
             });
 
         // ====================================================================
-        // MAIN CENTRAL CONTENT (60% Base Canvas + 30% Elevated Cards)
+        // MAIN CENTRAL CONTENT (Renders Active Page 1..4 or Locked View)
         // ====================================================================
         egui::CentralPanel::default()
             .frame(
                 egui::Frame::none()
                     .fill(p.bg_canvas)
-                    .inner_margin(Margin::symmetric(20.0, 14.0)),
+                    .inner_margin(Margin::symmetric(24.0, 18.0)),
             )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     if !self.session.is_locked {
-                        self.render_unlocked_configuration(ui, p, is_installing_ide, is_installing_ffmpeg);
+                        match self.current_page {
+                            WizardPage::IdeSetup => {
+                                self.render_page_1_ide(ui, p, is_installing_ide);
+                            }
+                            WizardPage::VideoRecording => {
+                                self.render_page_2_recording(ui, p, is_installing_ffmpeg);
+                            }
+                            WizardPage::WebsitePolicy => {
+                                self.render_page_3_website(ui, p);
+                            }
+                            WizardPage::ActivateLockdown => {
+                                self.render_page_4_activate(ui, p);
+                            }
+                        }
                     } else {
                         self.render_locked_session(ui, p);
                     }
@@ -477,145 +658,30 @@ impl eframe::App for ContestLockdownApp {
 }
 
 impl ContestLockdownApp {
-    fn render_unlocked_configuration(
-        &mut self,
-        ui: &mut egui::Ui,
-        p: AppPalette,
-        is_installing_ide: bool,
-        is_installing_ffmpeg: bool,
-    ) {
-        // --------------------------------------------------------------------
-        // CARD 1: WEBSITE WHITELIST & POLICY CONFIGURATION
-        // --------------------------------------------------------------------
+    // ========================================================================
+    // PAGE 1: CONTEST IDE INSTALLER & LAUNCHER
+    // ========================================================================
+    fn render_page_1_ide(&mut self, ui: &mut egui::Ui, p: AppPalette, is_installing_ide: bool) {
+        let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
+
         p.card_frame().show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("1. Website Whitelist & Browser Policy")
-                        .size(15.5)
-                        .strong()
-                        .color(p.accent_cyan),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.vertical(|ui| {
                     ui.label(
-                        RichText::new("Chrome • Edge • Brave • Vivaldi • Firefox")
-                            .size(11.5)
-                            .color(p.text_muted),
+                        RichText::new("Page 1 of 4 • Contest IDE Installer & Launcher")
+                            .size(19.0)
+                            .strong()
+                            .color(title_col),
+                    );
+                    ui.label(
+                        RichText::new(
+                            "Select your preferred programming IDE, verify if it is installed, or install it with one click.",
+                        )
+                        .size(13.0)
+                        .color(p.text_secondary),
                     );
                 });
-            });
-            ui.add_space(6.0);
 
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Primary Contest Domain:").color(p.text_primary));
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.domain_input)
-                        .hint_text("bapsoj.org")
-                        .desired_width(240.0),
-                );
-                if ui
-                    .button("🌐 Preview Site")
-                    .on_hover_text("Open this website in your browser now")
-                    .clicked()
-                {
-                    let clean = normalize_domain(&self.domain_input);
-                    if !clean.is_empty() {
-                        let _ = open_allowed_website(&clean);
-                    }
-                }
-            });
-
-            ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                ui.label(
-                    RichText::new("Extra Allowed Reference Domains:")
-                        .size(12.5)
-                        .color(p.text_secondary),
-                );
-                for preset in ["cppreference.com", "codeforces.com", "atcoder.jp", "vjudge.net"] {
-                    let already_added = self.extra_domains.iter().any(|d| d == preset);
-                    if !already_added
-                        && ui
-                            .small_button(format!("+ {}", preset))
-                            .on_hover_text("Whitelist this reference domain alongside the primary site")
-                            .clicked()
-                    {
-                        self.add_extra_domain(preset);
-                    }
-                }
-            });
-
-            ui.horizontal(|ui| {
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.new_extra_domain_input)
-                        .hint_text("Add custom domain (e.g. docs.python.org)")
-                        .desired_width(240.0),
-                );
-                if ui.button("+ Add Domain").clicked() && !self.new_extra_domain_input.is_empty() {
-                    let to_add = self.new_extra_domain_input.clone();
-                    self.add_extra_domain(&to_add);
-                    self.new_extra_domain_input.clear();
-                }
-            });
-
-            if !self.extra_domains.is_empty() {
-                ui.horizontal_wrapped(|ui| {
-                    let mut remove_idx = None;
-                    for (idx, dom) in self.extra_domains.iter().enumerate() {
-                        egui::Frame::none()
-                            .fill(p.bg_card_subtle)
-                            .stroke(Stroke::new(1.0_f32, p.accent_cyan.gamma_multiply(0.5)))
-                            .rounding(Rounding::same(6.0))
-                            .inner_margin(Margin::symmetric(8.0, 3.0))
-                            .show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label(RichText::new(dom).size(12.0).color(p.accent_cyan));
-                                    if ui.small_button("✕").clicked() {
-                                        remove_idx = Some(idx);
-                                    }
-                                });
-                            });
-                    }
-                    if let Some(i) = remove_idx {
-                        self.extra_domains.remove(i);
-                    }
-                });
-            }
-
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.checkbox(
-                    &mut self.block_all_downloads,
-                    "Block all downloads completely (uncheck to allow safe .txt/.zip problem statements)",
-                );
-            });
-
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Auto-Unlock Contest Timer:").color(p.text_secondary));
-                for (mins, label) in [
-                    (0, "Manual Only"),
-                    (60, "1 Hour"),
-                    (120, "2 Hours"),
-                    (180, "3 Hours"),
-                    (300, "5 Hours"),
-                ] {
-                    ui.selectable_value(&mut self.duration_minutes, mins, label);
-                }
-            });
-        });
-
-        ui.add_space(10.0);
-
-        // --------------------------------------------------------------------
-        // CARD 2: IDE SELECTION, SILENT INSTALLER & LAUNCHER
-        // --------------------------------------------------------------------
-        p.card_frame().show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("2. Contest IDE Installer & Launcher")
-                        .size(15.5)
-                        .strong()
-                        .color(p.accent_cyan),
-                );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let installed = self.selected_ide.is_installed();
                     if is_installing_ide {
@@ -632,29 +698,107 @@ impl ContestLockdownApp {
                     }
                 });
             });
+
+            ui.add_space(14.0);
+            ui.separator();
+            ui.add_space(10.0);
+
+            ui.label(
+                RichText::new("Choose Your Contest IDE:")
+                    .size(14.0)
+                    .strong()
+                    .color(p.text_primary),
+            );
             ui.add_space(6.0);
 
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Chosen IDE:").color(p.text_primary));
-                egui::ComboBox::from_id_salt("ide_selector")
-                    .width(210.0)
-                    .selected_text(self.selected_ide.display_name())
-                    .show_ui(ui, |ui| {
-                        for ide in IdeChoice::ALL {
-                            ui.selectable_value(&mut self.selected_ide, ide, ide.display_name());
-                        }
-                    });
+            // Render selectable IDE cards
+            for ide in IdeChoice::ALL {
+                let is_selected = self.selected_ide == ide;
+                let ide_installed = ide.is_installed();
+                let card_bg = if is_selected {
+                    if p.is_dark {
+                        egui::Color32::from_rgb(28, 96, 158)
+                    } else {
+                        p.gold_core
+                    }
+                } else {
+                    p.bg_input
+                };
+                let border_col = if is_selected {
+                    p.gold_core
+                } else {
+                    p.border_subtle
+                };
 
+                egui::Frame::none()
+                    .fill(card_bg)
+                    .stroke(Stroke::new(if is_selected { 2.0_f32 } else { 1.0_f32 }, border_col))
+                    .rounding(Rounding::same(8.0))
+                    .inner_margin(Margin::symmetric(14.0, 10.0))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .radio(is_selected, RichText::new(ide.display_name()).size(14.5).strong())
+                                .clicked()
+                            {
+                                self.selected_ide = ide;
+                            }
+                            ui.label(
+                                RichText::new(format!("— {}", ide.short_description()))
+                                    .size(12.5)
+                                    .color(p.text_secondary),
+                            );
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                if ide_installed {
+                                    ui.label(
+                                        RichText::new("✔ Installed")
+                                            .size(12.0)
+                                            .strong()
+                                            .color(if p.is_dark { p.gold_core } else { p.navy_core }),
+                                    );
+                                } else {
+                                    ui.label(
+                                        RichText::new("Not Installed")
+                                            .size(12.0)
+                                            .color(p.text_muted),
+                                    );
+                                }
+                            });
+                        });
+                    });
+                ui.add_space(4.0);
+            }
+
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
                 let installed = self.selected_ide.is_installed();
                 if installed {
-                    if ui.button("🚀 Launch IDE").clicked() {
+                    let launch_btn = egui::Button::new(
+                        RichText::new(format!("🚀 Launch {} Now", self.selected_ide.display_name()))
+                            .size(14.0)
+                            .strong()
+                            .color(p.text_on_gold),
+                    )
+                    .fill(p.gold_core)
+                    .min_size(egui::vec2(220.0, 36.0));
+
+                    if ui.add(launch_btn).clicked() {
                         match self.selected_ide.launch() {
                             Ok(m) => self.push_log(m, false),
                             Err(e) => self.push_log(e, true),
                         }
                     }
                 } else if !is_installing_ide {
-                    if ui.button("⬇ Install Selected IDE Now").clicked() {
+                    let install_btn = egui::Button::new(
+                        RichText::new(format!("⬇ Install {} Now", self.selected_ide.display_name()))
+                            .size(14.0)
+                            .strong()
+                            .color(p.text_on_gold),
+                    )
+                    .fill(p.gold_core)
+                    .min_size(egui::vec2(220.0, 36.0));
+
+                    if ui.add(install_btn).clicked() {
                         match self.ide_installer.start_install(self.selected_ide, false) {
                             Ok(m) => self.push_log(m, false),
                             Err(e) => self.push_log(e, true),
@@ -662,117 +806,439 @@ impl ContestLockdownApp {
                     }
                 } else {
                     ui.spinner();
+                    ui.label(
+                        RichText::new(format!(
+                            "Installing {} in the background ({}s elapsed)...",
+                            self.selected_ide.display_name(),
+                            self.ide_installer.elapsed_secs()
+                        ))
+                        .color(p.text_primary),
+                    );
                 }
             });
 
-            ui.label(
-                RichText::new(self.selected_ide.short_description())
-                    .size(12.0)
-                    .color(p.text_muted),
-            );
-            ui.add_space(4.0);
+            ui.add_space(10.0);
             ui.checkbox(
                 &mut self.auto_install_ide,
-                "Automatically install this IDE in the background if missing when Lockdown starts",
+                "Automatically install selected IDE in the background if missing when Lockdown starts",
             );
             ui.checkbox(
                 &mut self.auto_launch_ide,
-                "Automatically launch this IDE when Lockdown starts",
+                "Automatically launch selected IDE when Lockdown starts",
             );
         });
+    }
 
-        ui.add_space(10.0);
+    // ========================================================================
+    // PAGE 2: AUTOMATED DESKTOP VIDEO RECORDING
+    // ========================================================================
+    fn render_page_2_recording(
+        &mut self,
+        ui: &mut egui::Ui,
+        p: AppPalette,
+        is_installing_ffmpeg: bool,
+    ) {
+        let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
+        let ffmpeg_ok = ScreenRecorder::is_ffmpeg_available();
 
-        // --------------------------------------------------------------------
-        // CARD 3: AUTOMATIC SCREEN RECORDING ENGINE
-        // --------------------------------------------------------------------
         p.card_frame().show(ui, |ui| {
-            let ffmpeg_ok = ScreenRecorder::is_ffmpeg_available();
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("3. Automated Desktop Video Recording")
-                        .size(15.5)
-                        .strong()
-                        .color(p.accent_cyan),
-                );
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new("Page 2 of 4 • Automated Desktop Video Recording")
+                            .size(19.0)
+                            .strong()
+                            .color(title_col),
+                    );
+                    ui.label(
+                        RichText::new(
+                            "Configure automatic full-screen MP4 recording so both your IDE and browser are captured during the contest.",
+                        )
+                        .size(13.0)
+                        .color(p.text_secondary),
+                    );
+                });
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if is_installing_ffmpeg {
                         p.badge(ui, "⏳ Installing FFmpeg...", p.warning_fg, p.warning_bg);
                     } else if ffmpeg_ok {
-                        p.badge(ui, "✔ FFmpeg Engine Ready", p.success_fg, p.success_bg);
+                        p.badge(ui, "✔ FFmpeg Ready", p.success_fg, p.success_bg);
                     } else {
-                        p.badge(ui, "⚠ FFmpeg Required", p.warning_fg, p.warning_bg);
+                        p.badge(ui, "⚠ FFmpeg Missing", p.warning_fg, p.warning_bg);
                     }
                 });
             });
-            ui.add_space(6.0);
+
+            ui.add_space(14.0);
+            ui.separator();
+            ui.add_space(12.0);
 
             ui.checkbox(
                 &mut self.auto_start_recording,
-                "Start full-screen MP4 desktop recording automatically when Lockdown begins",
+                RichText::new("Start full-screen MP4 desktop video recording automatically when Lockdown begins")
+                    .size(14.0)
+                    .strong(),
+            );
+            ui.add_space(6.0);
+
+            ui.checkbox(
+                &mut self.recorder.capture_audio,
+                "Include system/microphone audio track in recording (optional)",
             );
 
+            ui.add_space(12.0);
+            ui.label(
+                RichText::new("Video Output Directory:")
+                    .size(14.0)
+                    .strong()
+                    .color(p.text_primary),
+            );
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Recordings Directory:").color(p.text_primary));
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.recordings_dir).desired_width(200.0),
+                    egui::TextEdit::singleline(&mut self.recordings_dir)
+                        .hint_text("recordings")
+                        .desired_width(280.0),
                 );
-                if ui.button("📂 Open Folder").clicked() {
+                if ui.button("📂 Open Recordings Folder").clicked() {
                     if let Err(e) = ScreenRecorder::open_recordings_folder(&self.recordings_dir) {
                         self.push_log(format!("Could not open folder: {}", e), true);
                     }
                 }
-                if !ffmpeg_ok && !is_installing_ffmpeg && ui.button("⬇ Install FFmpeg").clicked()
+            });
+
+            ui.add_space(14.0);
+            egui::Frame::none()
+                .fill(p.bg_input)
+                .stroke(Stroke::new(1.0_f32, p.border_subtle))
+                .rounding(Rounding::same(8.0))
+                .inner_margin(Margin::symmetric(14.0, 12.0))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("Recording Technical Specifications")
+                            .size(13.5)
+                            .strong()
+                            .color(title_col),
+                    );
+                    ui.label(
+                        RichText::new("• Encoder: H.264 (libx264 ultrafast, CRF 28, 15 FPS) — ~100 MB/hour")
+                            .size(12.5)
+                            .color(p.text_secondary),
+                    );
+                    ui.label(
+                        RichText::new("• Capture Driver: Windows GDI (gdigrab) • macOS AVFoundation • Linux X11 (x11grab)")
+                            .size(12.5)
+                            .color(p.text_secondary),
+                    );
+                    ui.label(
+                        RichText::new("• Crash-Safe Finalization: Sends graceful 'q' signal on unlock so MP4 headers never corrupt")
+                            .size(12.5)
+                            .color(p.text_secondary),
+                    );
+
+                    if !ffmpeg_ok && !is_installing_ffmpeg {
+                        ui.add_space(8.0);
+                        let ff_btn = egui::Button::new(
+                            RichText::new("⬇ Install FFmpeg Engine Automatically")
+                                .size(13.5)
+                                .strong()
+                                .color(p.text_on_gold),
+                        )
+                        .fill(p.gold_core)
+                        .min_size(egui::vec2(260.0, 34.0));
+
+                        if ui.add(ff_btn).clicked() {
+                            match self.recorder.start_ffmpeg_install() {
+                                Ok(m) => self.push_log(m, false),
+                                Err(e) => self.push_log(e, true),
+                            }
+                        }
+                    }
+                });
+        });
+    }
+
+    // ========================================================================
+    // PAGE 3: WEBSITE WHITELIST & BROWSER POLICY
+    // ========================================================================
+    fn render_page_3_website(&mut self, ui: &mut egui::Ui, p: AppPalette) {
+        let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
+
+        p.card_frame().show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new("Page 3 of 4 • Website Whitelist & Browser Policy")
+                            .size(19.0)
+                            .strong()
+                            .color(title_col),
+                    );
+                    ui.label(
+                        RichText::new(
+                            "Block all websites (*) across Chrome, Edge, Brave, Vivaldi, and Firefox except your chosen contest domain.",
+                        )
+                        .size(13.0)
+                        .color(p.text_secondary),
+                    );
+                });
+            });
+
+            ui.add_space(14.0);
+            ui.separator();
+            ui.add_space(10.0);
+
+            ui.label(
+                RichText::new("Primary Allowed Contest Website:")
+                    .size(14.0)
+                    .strong()
+                    .color(p.text_primary),
+            );
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.domain_input)
+                        .hint_text("bapsoj.org")
+                        .desired_width(280.0),
+                );
+                if ui
+                    .button("🌐 Preview Website in Browser")
+                    .on_hover_text("Open this URL right now to verify connectivity")
+                    .clicked()
                 {
-                    match self.recorder.start_ffmpeg_install() {
-                        Ok(m) => self.push_log(m, false),
-                        Err(e) => self.push_log(e, true),
+                    let clean = normalize_domain(&self.domain_input);
+                    if !clean.is_empty() {
+                        let _ = open_allowed_website(&clean);
                     }
                 }
             });
+
+            ui.add_space(12.0);
+            ui.label(
+                RichText::new("Optional Extra Whitelisted Reference Domains:")
+                    .size(14.0)
+                    .strong()
+                    .color(p.text_primary),
+            );
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new("Quick Add:").size(12.5).color(p.text_secondary));
+                for preset in ["cppreference.com", "codeforces.com", "atcoder.jp", "vjudge.net"] {
+                    let already_added = self.extra_domains.iter().any(|d| d == preset);
+                    if !already_added && ui.small_button(format!("+ {}", preset)).clicked() {
+                        self.add_extra_domain(preset);
+                    }
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.new_extra_domain_input)
+                        .hint_text("Add custom domain (e.g. docs.python.org)")
+                        .desired_width(280.0),
+                );
+                if ui.button("+ Add Domain").clicked() && !self.new_extra_domain_input.is_empty() {
+                    let to_add = self.new_extra_domain_input.clone();
+                    self.add_extra_domain(&to_add);
+                    self.new_extra_domain_input.clear();
+                }
+            });
+
+            if !self.extra_domains.is_empty() {
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    let mut remove_idx = None;
+                    for (idx, dom) in self.extra_domains.iter().enumerate() {
+                        egui::Frame::none()
+                            .fill(p.gold_core)
+                            .stroke(Stroke::new(1.0_f32, p.navy_core))
+                            .rounding(Rounding::same(6.0))
+                            .inner_margin(Margin::symmetric(9.0, 4.0))
+                            .show(ui, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label(
+                                        RichText::new(dom)
+                                            .size(12.0)
+                                            .strong()
+                                            .color(p.text_on_gold),
+                                    );
+                                    if ui
+                                        .small_button(RichText::new("✕").color(p.text_on_gold))
+                                        .clicked()
+                                    {
+                                        remove_idx = Some(idx);
+                                    }
+                                });
+                            });
+                    }
+                    if let Some(i) = remove_idx {
+                        self.extra_domains.remove(i);
+                    }
+                });
+            }
+
+            ui.add_space(12.0);
+            ui.checkbox(
+                &mut self.block_all_downloads,
+                "Block all file downloads completely (uncheck to allow safe .txt/.zip contest sample files)",
+            );
+
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Auto-Unlock Contest Duration:")
+                        .size(13.5)
+                        .strong()
+                        .color(p.text_primary),
+                );
+                for (mins, label) in [
+                    (0, "Manual Only"),
+                    (60, "1 Hour"),
+                    (120, "2 Hours"),
+                    (180, "3 Hours"),
+                    (300, "5 Hours"),
+                ] {
+                    ui.selectable_value(&mut self.duration_minutes, mins, label);
+                }
+            });
         });
+    }
 
-        ui.add_space(10.0);
+    // ========================================================================
+    // PAGE 4: SET SESSION PASSWORD & ACTIVATE LOCKDOWN
+    // ========================================================================
+    fn render_page_4_activate(&mut self, ui: &mut egui::Ui, p: AppPalette) {
+        let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
 
-        // --------------------------------------------------------------------
-        // CARD 4: PER-SESSION PASSWORD SETUP & LOCK TRIGGER (10% Accent CTA)
-        // --------------------------------------------------------------------
         p.card_frame().show(ui, |ui| {
             ui.label(
-                RichText::new("4. Set Session Password & Activate Lockdown")
-                    .size(15.5)
+                RichText::new("Page 4 of 4 • Set Session Password & Activate Lockdown")
+                    .size(19.0)
                     .strong()
-                    .color(p.accent_cyan),
+                    .color(title_col),
             );
             ui.label(
                 RichText::new(
-                    "Set a password for this lockdown session. It is hashed with SHA-256 and required to unlock.",
+                    "Review your contest settings below, set a password for this session, and activate the lockdown.",
                 )
-                .size(12.5)
+                .size(13.0)
                 .color(p.text_secondary),
             );
-            ui.add_space(6.0);
+
+            ui.add_space(12.0);
+
+            // Summary Box of Pages 1, 2, and 3 with quick Edit buttons
+            egui::Frame::none()
+                .fill(p.bg_input)
+                .stroke(Stroke::new(1.0_f32, p.border_subtle))
+                .rounding(Rounding::same(8.0))
+                .inner_margin(Margin::symmetric(14.0, 10.0))
+                .show(ui, |ui| {
+                    ui.label(
+                        RichText::new("Session Configuration Summary")
+                            .size(13.5)
+                            .strong()
+                            .color(title_col),
+                    );
+                    ui.add_space(4.0);
+
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!(
+                                "1. Contest IDE: {} (Auto-launch: {})",
+                                self.selected_ide.display_name(),
+                                if self.auto_launch_ide { "Yes" } else { "No" }
+                            ))
+                            .size(12.5)
+                            .color(p.text_primary),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("Edit Step 1").clicked() {
+                                self.current_page = WizardPage::IdeSetup;
+                            }
+                        });
+                    });
+
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            RichText::new(format!(
+                                "2. Video Recording: {} (Folder: {}/)",
+                                if self.auto_start_recording {
+                                    "Enabled"
+                                } else {
+                                    "Disabled"
+                                },
+                                self.recordings_dir
+                            ))
+                            .size(12.5)
+                            .color(p.text_primary),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("Edit Step 2").clicked() {
+                                self.current_page = WizardPage::VideoRecording;
+                            }
+                        });
+                    });
+
+                    ui.horizontal(|ui| {
+                        let extra_count = self.extra_domains.len();
+                        ui.label(
+                            RichText::new(format!(
+                                "3. Allowed Website: https://{}{} (Timer: {})",
+                                normalize_domain(&self.domain_input),
+                                if extra_count > 0 {
+                                    format!(" + {} extra", extra_count)
+                                } else {
+                                    String::new()
+                                },
+                                if self.duration_minutes == 0 {
+                                    "Manual Unlock".to_string()
+                                } else {
+                                    format!("{} mins", self.duration_minutes)
+                                }
+                            ))
+                            .size(12.5)
+                            .color(p.text_primary),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui.small_button("Edit Step 3").clicked() {
+                                self.current_page = WizardPage::WebsitePolicy;
+                            }
+                        });
+                    });
+                });
+
+            ui.add_space(14.0);
+            ui.separator();
+            ui.add_space(10.0);
 
             let (strength_score, strength_label) =
                 evaluate_password_strength(&self.lock_password_input);
             let strength_color = match strength_score {
                 0 => p.text_muted,
-                1 => p.danger_fg,
-                2 => p.warning_fg,
-                3 => p.accent_cyan,
-                _ => p.success_fg,
+                1 => egui::Color32::from_rgb(255, 120, 120),
+                2 => p.gold_core,
+                _ => egui::Color32::from_rgb(110, 231, 183),
             };
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new("New Session Password:").color(p.text_primary));
+                ui.label(
+                    RichText::new("Set Session Password: ")
+                        .size(14.0)
+                        .strong()
+                        .color(p.text_primary),
+                );
                 ui.add(
                     egui::TextEdit::singleline(&mut self.lock_password_input)
                         .password(!self.show_lock_password)
                         .hint_text("Enter password to lock")
-                        .desired_width(210.0),
+                        .desired_width(230.0),
                 );
                 if ui
-                    .button(if self.show_lock_password { "🙈 Hide" } else { "👁 Show" })
+                    .button(if self.show_lock_password {
+                        "🙈 Hide"
+                    } else {
+                        "👁 Show"
+                    })
                     .clicked()
                 {
                     self.show_lock_password = !self.show_lock_password;
@@ -780,53 +1246,58 @@ impl ContestLockdownApp {
                 if !self.lock_password_input.is_empty() {
                     ui.label(
                         RichText::new(format!("Strength: {}", strength_label))
-                            .size(12.0)
+                            .size(12.5)
                             .strong()
                             .color(strength_color),
                     );
                 }
             });
 
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Confirm Password:       ").color(p.text_primary));
+                ui.label(
+                    RichText::new("Confirm Password:       ")
+                        .size(14.0)
+                        .strong()
+                        .color(p.text_primary),
+                );
                 ui.add(
                     egui::TextEdit::singleline(&mut self.lock_password_confirm)
                         .password(!self.show_lock_password)
                         .hint_text("Re-enter password")
-                        .desired_width(210.0),
+                        .desired_width(230.0),
                 );
                 if !self.lock_password_confirm.is_empty() {
                     if self.lock_password_input == self.lock_password_confirm {
                         ui.label(
-                            RichText::new("✔ Matches")
-                                .size(12.0)
+                            RichText::new("✔ Passwords Match")
+                                .size(12.5)
                                 .strong()
-                                .color(p.success_fg),
+                                .color(if p.is_dark { p.gold_core } else { p.navy_core }),
                         );
                     } else {
                         ui.label(
                             RichText::new("✕ Does not match")
-                                .size(12.0)
+                                .size(12.5)
                                 .strong()
-                                .color(p.danger_fg),
+                                .color(egui::Color32::from_rgb(255, 120, 120)),
                         );
                     }
                 }
             });
 
-            ui.add_space(10.0);
-
+            ui.add_space(18.0);
             ui.vertical_centered(|ui| {
                 let cta_button = egui::Button::new(
-                    RichText::new("🔒 Set Session Password & Start Contest Lockdown")
-                        .size(15.5)
+                    RichText::new("🔒 Set Session Password & Activate Lockdown")
+                        .size(16.0)
                         .strong()
-                        .color(Color32::WHITE),
+                        .color(p.text_on_gold),
                 )
-                .fill(p.accent_primary)
-                .stroke(Stroke::new(1.2_f32, p.accent_cyan))
-                .rounding(Rounding::same(8.0))
-                .min_size(egui::vec2(420.0, 42.0));
+                .fill(p.gold_core)
+                .stroke(Stroke::new(1.5_f32, p.cream_core))
+                .rounding(Rounding::same(10.0))
+                .min_size(egui::vec2(440.0, 46.0));
 
                 if ui.add(cta_button).clicked() {
                     self.handle_start_lockdown();
@@ -835,18 +1306,20 @@ impl ContestLockdownApp {
         });
     }
 
+    // ========================================================================
+    // LOCKED SESSION VIEW (PASSWORD UNLOCK)
+    // ========================================================================
     fn render_locked_session(&mut self, ui: &mut egui::Ui, p: AppPalette) {
-        // --------------------------------------------------------------------
-        // SEMANTIC CRIMSON LOCKDOWN BANNER
-        // --------------------------------------------------------------------
-        p.banner_frame(p.danger_bg, p.danger_fg).show(ui, |ui| {
+        let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
+
+        p.banner_frame(p.danger_bg, p.gold_core).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
                         RichText::new("🔒 CONTEST ENVIRONMENT LOCKED DOWN")
-                            .size(17.0)
+                            .size(17.5)
                             .strong()
-                            .color(p.danger_fg),
+                            .color(p.gold_core),
                     );
                     ui.label(
                         RichText::new(format!(
@@ -854,7 +1327,7 @@ impl ContestLockdownApp {
                             self.session.allowed_domain
                         ))
                         .size(13.0)
-                        .color(p.text_primary),
+                        .color(p.cream_core),
                     );
                 });
 
@@ -876,15 +1349,12 @@ impl ContestLockdownApp {
 
         ui.add_space(12.0);
 
-        // --------------------------------------------------------------------
-        // ACTIVE SESSION DETAILS & QUICK LAUNCH ACTIONS
-        // --------------------------------------------------------------------
         p.card_frame().show(ui, |ui| {
             ui.label(
                 RichText::new("Active Session Parameters & Quick Actions")
-                    .size(15.5)
+                    .size(16.0)
                     .strong()
-                    .color(p.accent_cyan),
+                    .color(title_col),
             );
             ui.add_space(6.0);
 
@@ -896,20 +1366,17 @@ impl ContestLockdownApp {
                 .collect::<Vec<_>>()
                 .join("  •  ");
 
-            ui.label(RichText::new(format!("• Whitelisted Domains: {}", domains_str)).color(p.text_primary));
             ui.label(
-                RichText::new(format!(
-                    "• Contest IDE: {}",
-                    self.session.selected_ide
-                ))
-                .color(p.text_primary),
+                RichText::new(format!("• Whitelisted Domains: {}", domains_str))
+                    .color(p.text_primary),
             );
             ui.label(
-                RichText::new(format!(
-                    "• Lockdown Started: {}",
-                    self.session.started_at
-                ))
-                .color(p.text_secondary),
+                RichText::new(format!("• Contest IDE: {}", self.session.selected_ide))
+                    .color(p.text_primary),
+            );
+            ui.label(
+                RichText::new(format!("• Lockdown Started: {}", self.session.started_at))
+                    .color(p.text_secondary),
             );
 
             if let Some(path) = self
@@ -919,17 +1386,14 @@ impl ContestLockdownApp {
             {
                 ui.label(
                     RichText::new(format!("• Active Video Recording: {}", path))
-                        .color(p.success_fg),
+                        .color(title_col),
                 );
             }
 
             ui.add_space(10.0);
             ui.horizontal_wrapped(|ui| {
                 for dom in self.session.all_allowed_domains() {
-                    if ui
-                        .button(format!("🌐 Open {}", dom))
-                        .clicked()
-                    {
+                    if ui.button(format!("🌐 Open {}", dom)).clicked() {
                         let _ = open_allowed_website(&dom);
                     }
                 }
@@ -952,15 +1416,12 @@ impl ContestLockdownApp {
 
         ui.add_space(14.0);
 
-        // --------------------------------------------------------------------
-        // PASSWORD VERIFICATION & UNLOCK CARD
-        // --------------------------------------------------------------------
         p.card_frame().show(ui, |ui| {
             ui.label(
                 RichText::new("Unlock Contest Environment")
-                    .size(15.5)
+                    .size(16.0)
                     .strong()
-                    .color(p.accent_cyan),
+                    .color(title_col),
             );
             ui.label(
                 RichText::new(
@@ -972,7 +1433,7 @@ impl ContestLockdownApp {
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Session Password:").color(p.text_primary));
+                ui.label(RichText::new("Session Password:").strong().color(p.text_primary));
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut self.unlock_password_input)
                         .password(!self.show_unlock_password)
@@ -994,18 +1455,18 @@ impl ContestLockdownApp {
                 }
             });
 
-            ui.add_space(12.0);
+            ui.add_space(14.0);
             ui.vertical_centered(|ui| {
                 let unlock_btn = egui::Button::new(
                     RichText::new("🔓 Verify Password, Stop Recording & Restore Normal Access")
-                        .size(15.0)
+                        .size(15.5)
                         .strong()
-                        .color(Color32::WHITE),
+                        .color(p.text_on_gold),
                 )
-                .fill(p.accent_primary)
-                .stroke(Stroke::new(1.2_f32, p.accent_cyan))
-                .rounding(Rounding::same(8.0))
-                .min_size(egui::vec2(440.0, 42.0));
+                .fill(p.gold_core)
+                .stroke(Stroke::new(1.5_f32, p.cream_core))
+                .rounding(Rounding::same(10.0))
+                .min_size(egui::vec2(450.0, 44.0));
 
                 if ui.add(unlock_btn).clicked() {
                     self.handle_unlock_session();
