@@ -1,6 +1,6 @@
 use eframe::egui::{
-    self, Align2, Color32, ColorImage, FontId, IconData, Margin, Pos2, Rect, RichText, Rounding,
-    Sense, Shape, Stroke, Style, TextureHandle, TextureOptions, Vec2, Visuals,
+    self, Align2, Color32, ColorImage, FontId, IconData, Margin, Pos2, Rect, Rounding, Sense,
+    Shape, Stroke, Style, TextureHandle, TextureOptions, Vec2, Visuals,
 };
 use std::sync::Arc;
 
@@ -18,7 +18,7 @@ pub const HEADER_BTN_SIZE: Vec2 = Vec2::new(128.0, 32.0);
 pub const SMALL_ACTION_BTN_SIZE: Vec2 = Vec2::new(104.0, 30.0);
 pub const INPUT_BAR_BTN_SIZE: Vec2 = Vec2::new(148.0, 36.0);
 pub const NAV_BTN_SIZE: Vec2 = Vec2::new(195.0, 36.0);
-pub const PRIMARY_CTA_HEIGHT: f32 = 40.0;
+pub const PRIMARY_CTA_HEIGHT: f32 = 38.0;
 pub const TAB_BAR_HEIGHT: f32 = 36.0;
 pub const STD_ROUNDING: f32 = 8.0;
 pub const SMALL_ROUNDING: f32 = 6.0;
@@ -203,7 +203,7 @@ impl AppPalette {
             .fill(self.bg_card)
             .stroke(Stroke::new(1.2_f32, stroke_color))
             .rounding(Rounding::same(12.0))
-            .inner_margin(Margin::symmetric(22.0, 18.0))
+            .inner_margin(Margin::symmetric(20.0, 14.0))
     }
 
     pub fn sub_card_frame(&self) -> egui::Frame {
@@ -211,7 +211,7 @@ impl AppPalette {
             .fill(self.bg_input)
             .stroke(Stroke::new(1.0_f32, self.border_subtle))
             .rounding(Rounding::same(10.0))
-            .inner_margin(Margin::symmetric(18.0, 14.0))
+            .inner_margin(Margin::symmetric(16.0, 12.0))
     }
 
     pub fn banner_frame(&self, bg: Color32, border: Color32) -> egui::Frame {
@@ -224,36 +224,55 @@ impl AppPalette {
 
     /// Draws a crisp `14x14` vector icon centered at `center` with `color`.
     pub fn paint_icon(painter: &egui::Painter, center: Pos2, icon: AppIcon, color: Color32) {
-        let r = ICON_SIZE * 0.5;
         let stroke = Stroke::new(1.7_f32, color);
 
         match icon {
             AppIcon::Lock => {
-                // Shackle arch + lock body
-                let body = Rect::from_center_size(Pos2::new(center.x, center.y + 2.0), Vec2::new(10.0, 7.5));
+                let body = Rect::from_center_size(
+                    Pos2::new(center.x, center.y + 2.0),
+                    Vec2::new(10.0, 7.5),
+                );
                 painter.rect_stroke(body, Rounding::same(1.5), stroke);
                 painter.line_segment(
-                    [Pos2::new(center.x - 3.0, center.y - 1.8), Pos2::new(center.x - 3.0, center.y - 4.5)],
+                    [
+                        Pos2::new(center.x - 3.0, center.y - 1.8),
+                        Pos2::new(center.x - 3.0, center.y - 4.5),
+                    ],
                     stroke,
                 );
                 painter.line_segment(
-                    [Pos2::new(center.x + 3.0, center.y - 1.8), Pos2::new(center.x + 3.0, center.y - 4.5)],
+                    [
+                        Pos2::new(center.x + 3.0, center.y - 1.8),
+                        Pos2::new(center.x + 3.0, center.y - 4.5),
+                    ],
                     stroke,
                 );
                 painter.line_segment(
-                    [Pos2::new(center.x - 3.0, center.y - 4.5), Pos2::new(center.x + 3.0, center.y - 4.5)],
+                    [
+                        Pos2::new(center.x - 3.0, center.y - 4.5),
+                        Pos2::new(center.x + 3.0, center.y - 4.5),
+                    ],
                     stroke,
                 );
             }
             AppIcon::Unlock => {
-                let body = Rect::from_center_size(Pos2::new(center.x, center.y + 2.0), Vec2::new(10.0, 7.5));
+                let body = Rect::from_center_size(
+                    Pos2::new(center.x, center.y + 2.0),
+                    Vec2::new(10.0, 7.5),
+                );
                 painter.rect_stroke(body, Rounding::same(1.5), stroke);
                 painter.line_segment(
-                    [Pos2::new(center.x - 3.0, center.y - 1.8), Pos2::new(center.x - 3.0, center.y - 5.0)],
+                    [
+                        Pos2::new(center.x - 3.0, center.y - 1.8),
+                        Pos2::new(center.x - 3.0, center.y - 5.0),
+                    ],
                     stroke,
                 );
                 painter.line_segment(
-                    [Pos2::new(center.x - 3.0, center.y - 5.0), Pos2::new(center.x + 2.5, center.y - 5.0)],
+                    [
+                        Pos2::new(center.x - 3.0, center.y - 5.0),
+                        Pos2::new(center.x + 2.5, center.y - 5.0),
+                    ],
                     stroke,
                 );
             }
@@ -277,7 +296,10 @@ impl AppPalette {
             AppIcon::Moon => {
                 painter.circle_stroke(center, 5.0, stroke);
                 painter.line_segment(
-                    [Pos2::new(center.x + 1.5, center.y - 3.8), Pos2::new(center.x + 1.5, center.y + 3.8)],
+                    [
+                        Pos2::new(center.x + 1.5, center.y - 3.8),
+                        Pos2::new(center.x + 1.5, center.y + 3.8),
+                    ],
                     stroke,
                 );
             }
@@ -291,7 +313,10 @@ impl AppPalette {
             }
             AppIcon::Download => {
                 painter.line_segment(
-                    [Pos2::new(center.x, center.y - 5.2), Pos2::new(center.x, center.y + 2.5)],
+                    [
+                        Pos2::new(center.x, center.y - 5.2),
+                        Pos2::new(center.x, center.y + 2.5),
+                    ],
                     stroke,
                 );
                 let arrow = vec![
@@ -301,7 +326,10 @@ impl AppPalette {
                 ];
                 painter.add(Shape::line(arrow, stroke));
                 painter.line_segment(
-                    [Pos2::new(center.x - 4.8, center.y + 5.2), Pos2::new(center.x + 4.8, center.y + 5.2)],
+                    [
+                        Pos2::new(center.x - 4.8, center.y + 5.2),
+                        Pos2::new(center.x + 4.8, center.y + 5.2),
+                    ],
                     stroke,
                 );
             }
@@ -314,41 +342,65 @@ impl AppPalette {
                 painter.add(Shape::convex_polygon(tri, color, Stroke::NONE));
             }
             AppIcon::Folder => {
-                let body = Rect::from_center_size(Pos2::new(center.x, center.y + 1.0), Vec2::new(11.0, 7.5));
+                let body = Rect::from_center_size(
+                    Pos2::new(center.x, center.y + 1.0),
+                    Vec2::new(11.0, 7.5),
+                );
                 painter.rect_stroke(body, Rounding::same(1.5), stroke);
                 painter.line_segment(
-                    [Pos2::new(center.x - 5.5, center.y - 2.8), Pos2::new(center.x - 1.0, center.y - 2.8)],
+                    [
+                        Pos2::new(center.x - 5.5, center.y - 2.8),
+                        Pos2::new(center.x - 1.0, center.y - 2.8),
+                    ],
                     stroke,
                 );
             }
             AppIcon::Globe => {
                 painter.circle_stroke(center, 5.5, stroke);
                 painter.line_segment(
-                    [Pos2::new(center.x - 5.5, center.y), Pos2::new(center.x + 5.5, center.y)],
+                    [
+                        Pos2::new(center.x - 5.5, center.y),
+                        Pos2::new(center.x + 5.5, center.y),
+                    ],
                     stroke,
                 );
                 painter.line_segment(
-                    [Pos2::new(center.x, center.y - 5.5), Pos2::new(center.x, center.y + 5.5)],
+                    [
+                        Pos2::new(center.x, center.y - 5.5),
+                        Pos2::new(center.x, center.y + 5.5),
+                    ],
                     stroke,
                 );
             }
             AppIcon::Plus => {
                 painter.line_segment(
-                    [Pos2::new(center.x - 4.5, center.y), Pos2::new(center.x + 4.5, center.y)],
+                    [
+                        Pos2::new(center.x - 4.5, center.y),
+                        Pos2::new(center.x + 4.5, center.y),
+                    ],
                     stroke,
                 );
                 painter.line_segment(
-                    [Pos2::new(center.x, center.y - 4.5), Pos2::new(center.x, center.y + 4.5)],
+                    [
+                        Pos2::new(center.x, center.y - 4.5),
+                        Pos2::new(center.x, center.y + 4.5),
+                    ],
                     stroke,
                 );
             }
             AppIcon::Close => {
                 painter.line_segment(
-                    [Pos2::new(center.x - 3.8, center.y - 3.8), Pos2::new(center.x + 3.8, center.y + 3.8)],
+                    [
+                        Pos2::new(center.x - 3.8, center.y - 3.8),
+                        Pos2::new(center.x + 3.8, center.y + 3.8),
+                    ],
                     stroke,
                 );
                 painter.line_segment(
-                    [Pos2::new(center.x + 3.8, center.y - 3.8), Pos2::new(center.x - 3.8, center.y + 3.8)],
+                    [
+                        Pos2::new(center.x + 3.8, center.y - 3.8),
+                        Pos2::new(center.x - 3.8, center.y + 3.8),
+                    ],
                     stroke,
                 );
             }
@@ -361,13 +413,19 @@ impl AppPalette {
                 let rect = Rect::from_center_size(center, Vec2::new(11.0, 6.5));
                 painter.rect_stroke(rect, Rounding::same(3.2), stroke);
                 painter.line_segment(
-                    [Pos2::new(center.x - 5.2, center.y + 4.5), Pos2::new(center.x + 5.2, center.y - 4.5)],
+                    [
+                        Pos2::new(center.x - 5.2, center.y + 4.5),
+                        Pos2::new(center.x + 5.2, center.y - 4.5),
+                    ],
                     stroke,
                 );
             }
             AppIcon::ArrowLeft => {
                 painter.line_segment(
-                    [Pos2::new(center.x + 4.8, center.y), Pos2::new(center.x - 4.2, center.y)],
+                    [
+                        Pos2::new(center.x + 4.8, center.y),
+                        Pos2::new(center.x - 4.2, center.y),
+                    ],
                     stroke,
                 );
                 let head = vec![
@@ -379,7 +437,10 @@ impl AppPalette {
             }
             AppIcon::ArrowRight => {
                 painter.line_segment(
-                    [Pos2::new(center.x - 4.8, center.y), Pos2::new(center.x + 4.2, center.y)],
+                    [
+                        Pos2::new(center.x - 4.8, center.y),
+                        Pos2::new(center.x + 4.2, center.y),
+                    ],
                     stroke,
                 );
                 let head = vec![
@@ -391,21 +452,29 @@ impl AppPalette {
             }
             AppIcon::Edit => {
                 painter.line_segment(
-                    [Pos2::new(center.x - 4.0, center.y + 4.0), Pos2::new(center.x + 4.0, center.y - 4.0)],
+                    [
+                        Pos2::new(center.x - 4.0, center.y + 4.0),
+                        Pos2::new(center.x + 4.0, center.y - 4.0),
+                    ],
                     Stroke::new(2.0_f32, color),
                 );
                 painter.circle_filled(Pos2::new(center.x - 4.5, center.y + 4.5), 1.0, color);
             }
             AppIcon::Trash => {
-                let body = Rect::from_center_size(Pos2::new(center.x, center.y + 1.2), Vec2::new(8.0, 8.0));
+                let body = Rect::from_center_size(
+                    Pos2::new(center.x, center.y + 1.2),
+                    Vec2::new(8.0, 8.0),
+                );
                 painter.rect_stroke(body, Rounding::same(1.0), stroke);
                 painter.line_segment(
-                    [Pos2::new(center.x - 5.2, center.y - 2.8), Pos2::new(center.x + 5.2, center.y - 2.8)],
+                    [
+                        Pos2::new(center.x - 5.2, center.y - 2.8),
+                        Pos2::new(center.x + 5.2, center.y - 2.8),
+                    ],
                     stroke,
                 );
             }
         }
-        let _ = r;
     }
 
     /// Renders a non-interactive status pill of exact `size` with an optional uniform `14x14` vector icon and centered text.
@@ -429,7 +498,7 @@ impl AppPalette {
             );
 
             let font = FontId::proportional(12.5);
-            let galley = painter.layout_no_wrap(text.to_string(), font.clone(), fg);
+            let galley = painter.layout_no_wrap(text.to_string(), font, fg);
             let text_w = galley.size().x;
 
             if let Some(ic) = icon {
@@ -439,13 +508,19 @@ impl AppPalette {
                 let icon_center = Pos2::new(start_x + ICON_SIZE * 0.5, rect.center().y);
                 Self::paint_icon(painter, icon_center, ic, fg);
                 painter.galley(
-                    Pos2::new(start_x + ICON_SIZE + gap, rect.center().y - galley.size().y * 0.5),
+                    Pos2::new(
+                        start_x + ICON_SIZE + gap,
+                        rect.center().y - galley.size().y * 0.5,
+                    ),
                     galley,
                     fg,
                 );
             } else {
                 painter.galley(
-                    Pos2::new(rect.center().x - text_w * 0.5, rect.center().y - galley.size().y * 0.5),
+                    Pos2::new(
+                        rect.center().x - text_w * 0.5,
+                        rect.center().y - galley.size().y * 0.5,
+                    ),
                     galley,
                     fg,
                 );
@@ -472,16 +547,12 @@ impl AppPalette {
         let (rect, response) = ui.allocate_exact_size(size, Sense::click());
         if ui.is_rect_visible(rect) {
             let is_hovered = response.hovered() && ui.is_enabled();
-            let bg = if !ui.is_enabled() {
-                fill.gamma_multiply(0.42)
-            } else if is_hovered {
+            let bg = if is_hovered {
                 self.accent_hover
             } else {
                 fill
             };
-            let fg = if !ui.is_enabled() {
-                text_color.gamma_multiply(0.48)
-            } else if is_hovered {
+            let fg = if is_hovered {
                 self.text_on_gold
             } else {
                 text_color
@@ -617,7 +688,12 @@ impl AppPalette {
             } else {
                 AppIcon::Plus
             };
-            Self::paint_icon(painter, Pos2::new(start_x + ICON_SIZE * 0.5, row1_y), icon, fg1);
+            Self::paint_icon(
+                painter,
+                Pos2::new(start_x + ICON_SIZE * 0.5, row1_y),
+                icon,
+                fg1,
+            );
             painter.galley(
                 Pos2::new(
                     start_x + ICON_SIZE + gap,
@@ -639,11 +715,12 @@ impl AppPalette {
     }
 
     /// Draws the loaded `ProctorX Logo.png` texture at the specified `size`.
-    pub fn draw_logo_image(&self, ui: &mut egui::Ui, logo_tex: &TextureHandle, size: Vec2) {
+    pub fn draw_logo_image(&self, ui: &mut egui::Ui, logo_tex: &TextureHandle, size: Vec2) -> egui::Response {
         let img = egui::Image::from_texture(logo_tex)
             .fit_to_exact_size(size)
-            .rounding(Rounding::same(6.0));
-        ui.add(img);
+            .rounding(Rounding::same(6.0))
+            .sense(Sense::click());
+        ui.add(img)
     }
 
     /// Creates a `LayoutJob` for the two-tone **ProctorX** wordmark (`Proctor` in `#FAF0CA` + `X` in `#F4D35E`).
