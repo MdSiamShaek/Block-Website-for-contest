@@ -38,11 +38,12 @@ pub struct AppPalette {
     pub warning_bg: Color32,
 }
 
-/// 15x17 100% mirror-symmetrical pixel-art matrix of the ProctorX V-Chevron / Keyhole emblem
-/// from `ProctorX Pixel Keyhole Logo.png`. Every row is strictly palindromic (left == right).
-pub const PROCTORX_PIXEL_EMBLEM: [&str; 17] = [
+/// 15x14 100% mirror-symmetrical pixel-art matrix matching `ProctorX Pixel Keyhole Logo.png`:
+/// - Upper curved horns (rows 0..6)
+/// - Wide horizontal chevron shoulders (row 7)
+/// - Clean diagonal hollow V-arms meeting at a sharp single-pixel point (rows 8..13)
+pub const PROCTORX_PIXEL_EMBLEM: [&str; 14] = [
     "...##.....##...",
-    "..##.......##..",
     "..##.......##..",
     "..##.......##..",
     "...##.....##...",
@@ -50,11 +51,9 @@ pub const PROCTORX_PIXEL_EMBLEM: [&str; 17] = [
     "....##...##....",
     "....##...##....",
     "..####...####..",
-    "...###...###...",
+    "...##.....##...",
     "....##...##....",
-    "....###.###....",
     ".....##.##.....",
-    ".....#####.....",
     "......###......",
     "......###......",
     ".......#.......",
@@ -194,7 +193,7 @@ impl AppPalette {
             .fill(self.bg_card)
             .stroke(Stroke::new(1.2_f32, stroke_color))
             .rounding(Rounding::same(12.0))
-            .inner_margin(Margin::symmetric(20.0, 18.0))
+            .inner_margin(Margin::symmetric(20.0, 16.0))
     }
 
     /// Returns a clean sub-section card Frame with symmetrical margins.
@@ -203,7 +202,7 @@ impl AppPalette {
             .fill(self.bg_input)
             .stroke(Stroke::new(1.0_f32, self.border_subtle))
             .rounding(Rounding::same(10.0))
-            .inner_margin(Margin::symmetric(16.0, 14.0))
+            .inner_margin(Margin::symmetric(16.0, 12.0))
     }
 
     /// Returns a highlighted banner Frame for semantic state callouts.
@@ -223,20 +222,20 @@ impl AppPalette {
             .rounding(Rounding::same(12.0))
             .inner_margin(Margin::symmetric(10.0, 4.0))
             .show(ui, |ui| {
-                ui.label(egui::RichText::new(text).color(fg).strong().size(12.0));
+                ui.label(RichText::new(text).color(fg).strong().size(12.0));
             });
     }
 
-    /// Draws the exact **ProctorX Pixel Keyhole Logo** from the user's image,
-    /// mathematically centered and 100% bilaterally mirror-symmetrical:
-    /// - Deep Navy (`#0D3B66`) rounded-square interior
-    /// - Bold Sunshine Gold (`#F4D35E`) rounded-square frame
-    /// - 15x17 palindromic pixel-art V-Keyhole emblem centered inside the square
+    /// Draws the exact **ProctorX Pixel Keyhole Logo** from `ProctorX Pixel Keyhole Logo.png`,
+    /// 100% bilaterally mirror-symmetrical and centered:
+    /// - Deep Navy (`#061C38`) rounded-square interior
+    /// - Bold Sunshine Gold (`#F4D35E`) rounded-square border
+    /// - 15x14 palindromic pixel-art V-Keyhole emblem centered inside the square
     pub fn draw_proctorx_pixel_logo(&self, ui: &mut egui::Ui, size: f32) {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
         let painter = ui.painter_at(rect);
 
-        let border_w = (size * 0.068).max(2.0);
+        let border_w = (size * 0.068).max(2.2);
         let box_rounding = Rounding::same((size * 0.22).max(6.0));
 
         // 1. Rounded-square background & bold gold border
@@ -247,10 +246,10 @@ impl AppPalette {
             Stroke::new(border_w, self.gold_core),
         );
 
-        // 2. Render the 15x17 mirror-symmetric pixel grid centered at `rect.center()`
+        // 2. Render the 15x14 mirror-symmetric pixel grid centered at `rect.center()`
         let cols = 15_usize;
-        let rows = 17_usize;
-        let pixel_size = (size * 0.54) / (rows as f32);
+        let rows = PROCTORX_PIXEL_EMBLEM.len();
+        let pixel_size = (size * 0.52) / (cols as f32);
         let grid_w = (cols as f32) * pixel_size;
         let grid_h = (rows as f32) * pixel_size;
         let start_x = rect.center().x - grid_w * 0.5;
@@ -263,14 +262,18 @@ impl AppPalette {
                         start_x + (c_idx as f32) * pixel_size,
                         start_y + (r_idx as f32) * pixel_size,
                     );
-                    let max = Pos2::new(min.x + pixel_size + 0.3, min.y + pixel_size + 0.3);
-                    painter.rect_filled(Rect::from_min_max(min, max), Rounding::ZERO, self.gold_core);
+                    let max = Pos2::new(min.x + pixel_size + 0.35, min.y + pixel_size + 0.35);
+                    painter.rect_filled(
+                        Rect::from_min_max(min, max),
+                        Rounding::ZERO,
+                        self.gold_core,
+                    );
                 }
             }
         }
     }
 
-    /// Creates a centered `LayoutJob` for the two-tone **ProctorX** wordmark (`Proctor` in `#FAF0CA` + `X` in `#F4D35E`).
+    /// Creates a `LayoutJob` for the two-tone **ProctorX** wordmark (`Proctor` in `#FAF0CA` + `X` in `#F4D35E`).
     pub fn proctorx_wordmark_job(&self, font_size: f32) -> egui::text::LayoutJob {
         let mut job = egui::text::LayoutJob::default();
         job.append(
@@ -293,43 +296,6 @@ impl AppPalette {
         );
         job
     }
-
-    /// Renders the 100% symmetrical, centered **ProctorX** hero banner on Page 4:
-    /// - Centered Rounded-Square Pixel Keyhole Logo
-    /// - Centered `ProctorX` wordmark
-    /// - Centered `SECURE. MONITOR. CONTROL.` motto
-    /// - Symmetrical full-width divider line
-    /// - Centered `Cross-Platform Contest Lockdown & Proctoring Suite` subtitle
-    pub fn render_proctorx_hero_banner(&self, ui: &mut egui::Ui) {
-        egui::Frame::none()
-            .fill(Color32::from_rgb(6, 28, 56))
-            .stroke(Stroke::new(1.2_f32, self.gold_core.gamma_multiply(0.55)))
-            .rounding(Rounding::same(14.0))
-            .inner_margin(Margin::symmetric(24.0, 14.0))
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
-                ui.vertical_centered(|ui| {
-                    self.draw_proctorx_pixel_logo(ui, 56.0);
-                    ui.add_space(4.0);
-                    ui.label(self.proctorx_wordmark_job(25.0));
-                    ui.add_space(2.0);
-                    ui.label(
-                        RichText::new("SECURE. MONITOR. CONTROL.")
-                            .size(13.0)
-                            .strong()
-                            .color(self.gold_core),
-                    );
-                    ui.add_space(6.0);
-                    ui.separator();
-                    ui.add_space(2.0);
-                    ui.label(
-                        RichText::new("Cross-Platform Contest Lockdown & Proctoring Suite")
-                            .size(12.5)
-                            .color(self.cream_core),
-                    );
-                });
-            });
-    }
 }
 
 /// Generates a 64x64 RGBA native OS window & dock icon matching the symmetrical
@@ -344,32 +310,27 @@ pub fn build_window_icon() -> Arc<IconData> {
 
     for y in 0..h {
         for x in 0..w {
-            // Use symmetric coordinates around center 31.5
             let fx = (x as f32 - 31.5) / 31.5;
             let fy = (y as f32 - 31.5) / 31.5;
             let idx = (y * w + x) * 4;
 
-            // Symmetrical rounded square SDF
             let qx = fx.abs() - 0.66;
             let qy = fy.abs() - 0.66;
             let r_dist =
                 (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 0.22;
 
             if r_dist <= 0.0 {
-                let color = if r_dist >= -0.095 {
-                    gold
-                } else {
-                    navy
-                };
+                let color = if r_dist >= -0.095 { gold } else { navy };
                 rgba[idx..idx + 4].copy_from_slice(&color);
             }
         }
     }
 
-    // Stamp the 15x17 symmetrical pixel emblem at 2x2 pixels per cell (30x34 centered at 17..47, 15..49)
+    // Stamp the 15x14 symmetrical pixel emblem at 2x2 pixels per cell (30x28 centered at 17..47, 18..46)
     let scale = 2_usize;
-    let start_x = (w - 15 * scale) / 2; // (64 - 30) / 2 = 17
-    let start_y = (h - 17 * scale) / 2; // (64 - 34) / 2 = 15
+    let rows = PROCTORX_PIXEL_EMBLEM.len();
+    let start_x = (w - 15 * scale) / 2;
+    let start_y = (h - rows * scale) / 2;
 
     for (r_idx, row_str) in PROCTORX_PIXEL_EMBLEM.iter().enumerate() {
         for (c_idx, ch) in row_str.chars().enumerate() {
