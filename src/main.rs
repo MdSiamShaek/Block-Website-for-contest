@@ -6,7 +6,7 @@ mod recorder;
 mod state;
 mod theme;
 
-use eframe::egui::{self, Color32, Margin, RichText, Rounding, Stroke};
+use eframe::egui::{self, Color32, FontId, Margin, RichText, Rounding, Stroke};
 use ide::{IdeChoice, IdeInstallTracker};
 use policy::{disable_browser_lockdown, enable_browser_lockdown, open_allowed_website};
 use recorder::ScreenRecorder;
@@ -81,15 +81,15 @@ impl WizardPage {
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([800.0, 700.0])
-            .with_min_inner_size([680.0, 600.0])
+            .with_inner_size([840.0, 740.0])
+            .with_min_inner_size([700.0, 620.0])
             .with_icon(build_window_icon())
-            .with_title("Contest Lockdown & Proctoring Suite"),
+            .with_title("ProctorX — Cross-Platform Contest Lockdown & Proctoring Suite"),
         ..Default::default()
     };
 
     eframe::run_native(
-        "Contest Lockdown & Proctoring Suite",
+        "ProctorX — Cross-Platform Contest Lockdown & Proctoring Suite",
         options,
         Box::new(|cc| Ok(Box::new(ContestLockdownApp::new(cc)))),
     )
@@ -149,7 +149,7 @@ impl ContestLockdownApp {
         let duration_minutes = session.duration_minutes;
 
         let mut status_log = vec![(
-            "Welcome! Select your contest IDEs, recording preferences, and website whitelist across Pages 1–4."
+            "ProctorX Ready — SECURE. MONITOR. CONTROL. Complete Steps 1–4 to lock down the environment."
                 .to_string(),
             false,
         )];
@@ -157,7 +157,7 @@ impl ContestLockdownApp {
         if session.is_locked {
             status_log.push((
                 format!(
-                    "Restored active lockdown session for https://{} (started at {}). Enter the session password to unlock.",
+                    "Restored active ProctorX lockdown session for https://{} (started at {}). Enter the session password to unlock.",
                     session.allowed_domain, session.started_at
                 ),
                 false,
@@ -400,7 +400,7 @@ impl eframe::App for ContestLockdownApp {
         if ctx.input(|i| i.viewport().close_requested()) && self.session.is_locked {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.push_log(
-                "Cannot close window while Contest Lockdown is active! Enter the session password to unlock first.",
+                "Cannot close ProctorX while Contest Lockdown is active! Enter the session password to unlock first.",
                 true,
             );
         }
@@ -447,7 +447,7 @@ impl eframe::App for ContestLockdownApp {
         }
 
         // ====================================================================
-        // TOP HEADER BAR WITH CUSTOM VECTOR SHIELD LOGO
+        // TOP HEADER BAR WITH PROCTORX LOGO, MOTTO & SUBTITLE
         // ====================================================================
         egui::TopBottomPanel::top("header_panel")
             .frame(
@@ -458,23 +458,25 @@ impl eframe::App for ContestLockdownApp {
             )
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    // Render the custom Shield + Code Brackets + Keyhole Logo Emblem
-                    p.draw_logo(ui, 44.0);
-                    ui.add_space(6.0);
+                    // Render the rounded-square ProctorX Shield+Checkmark icon
+                    p.draw_proctorx_shield_badge(ui, 48.0);
+                    ui.add_space(8.0);
 
                     ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            p.render_proctorx_wordmark(ui, 23.0);
+                            ui.add_space(8.0);
+                            ui.label(
+                                RichText::new("— SECURE. MONITOR. CONTROL.")
+                                    .size(12.5)
+                                    .strong()
+                                    .color(p.gold_core),
+                            );
+                        });
                         ui.label(
-                            RichText::new("Contest Lockdown & Proctoring Suite")
-                                .size(20.0)
-                                .strong()
-                                .color(p.gold_core),
-                        );
-                        ui.label(
-                            RichText::new(
-                                "Multi-IDE Installer • Automated Screen Recorder • Browser Whitelist Policy",
-                            )
-                            .size(12.5)
-                            .color(p.cream_core),
+                            RichText::new("Cross-Platform Contest Lockdown & Proctoring Suite")
+                                .size(12.5)
+                                .color(p.cream_core),
                         );
                     });
 
@@ -628,7 +630,7 @@ impl eframe::App for ContestLockdownApp {
 
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("Activity & Audit Log")
+                        RichText::new("ProctorX Activity & Audit Log")
                             .size(11.5)
                             .strong()
                             .color(p.gold_core),
@@ -644,7 +646,7 @@ impl eframe::App for ContestLockdownApp {
                     });
                 });
                 egui::ScrollArea::vertical()
-                    .max_height(58.0)
+                    .max_height(56.0)
                     .stick_to_bottom(true)
                     .show(ui, |ui| {
                         for (line, is_err) in &self.status_log {
@@ -665,7 +667,7 @@ impl eframe::App for ContestLockdownApp {
             .frame(
                 egui::Frame::none()
                     .fill(p.bg_canvas)
-                    .inner_margin(Margin::symmetric(24.0, 16.0)),
+                    .inner_margin(Margin::symmetric(24.0, 14.0)),
             )
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
@@ -740,7 +742,6 @@ impl ContestLockdownApp {
             ui.separator();
             ui.add_space(8.0);
 
-            // Header row with quick multi-select controls
             ui.horizontal(|ui| {
                 ui.label(
                     RichText::new("Select Contest IDEs (Multi-Select):")
@@ -765,7 +766,6 @@ impl ContestLockdownApp {
             });
             ui.add_space(6.0);
 
-            // Render multi-select checkbox cards for each IDE
             for ide in IdeChoice::ALL {
                 let mut is_checked = self.selected_ides.contains(&ide);
                 let ide_installed = ide.is_installed();
@@ -859,7 +859,6 @@ impl ContestLockdownApp {
                 ui.add_space(4.0);
             }
 
-            // Compute batch counts for selected IDEs
             let selected_missing: Vec<IdeChoice> = self
                 .selected_ides
                 .iter()
@@ -995,20 +994,33 @@ impl ContestLockdownApp {
                     "Include system/microphone audio track in recording (optional)",
                 );
 
-                ui.add_space(10.0);
+                ui.add_space(12.0);
+                ui.label(
+                    RichText::new("Video Output Directory:")
+                        .size(13.5)
+                        .strong()
+                        .color(p.text_primary),
+                );
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Video Output Directory:")
-                            .size(13.5)
-                            .strong()
-                            .color(p.text_primary),
-                    );
+                    let input_w = (ui.available_width() - 210.0).max(260.0);
                     ui.add(
                         egui::TextEdit::singleline(&mut self.recordings_dir)
                             .hint_text("recordings")
-                            .desired_width(240.0),
+                            .font(FontId::proportional(14.5))
+                            .margin(Margin::symmetric(12.0, 9.0))
+                            .desired_width(input_w),
                     );
-                    if ui.button("📂 Open Recordings Folder").clicked() {
+                    let folder_btn = egui::Button::new(
+                        RichText::new("📂 Open Recordings Folder")
+                            .size(13.5)
+                            .strong()
+                            .color(p.text_on_gold),
+                    )
+                    .fill(p.gold_core)
+                    .min_size(egui::vec2(195.0, 36.0));
+
+                    if ui.add(folder_btn).clicked() {
                         if let Err(e) = ScreenRecorder::open_recordings_folder(&self.recordings_dir) {
                             self.push_log(format!("Could not open folder: {}", e), true);
                         }
@@ -1056,7 +1068,7 @@ impl ContestLockdownApp {
                             .color(p.text_on_gold),
                     )
                     .fill(p.gold_core)
-                    .min_size(egui::vec2(260.0, 34.0));
+                    .min_size(egui::vec2(260.0, 36.0));
 
                     if ui.add(ff_btn).clicked() {
                         match self.recorder.start_ffmpeg_install() {
@@ -1077,7 +1089,6 @@ impl ContestLockdownApp {
         let total_sites = 1 + self.extra_domains.len();
 
         p.card_frame().show(ui, |ui| {
-            // Clean Header
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
                     ui.label(
@@ -1108,7 +1119,7 @@ impl ContestLockdownApp {
             ui.add_space(12.0);
 
             // ----------------------------------------------------------------
-            // SUB-PANEL 1: PRIMARY CONTEST DOMAIN
+            // SUB-PANEL 1: PRIMARY CONTEST DOMAIN (PROPORTIONED FULL-WIDTH INPUT)
             // ----------------------------------------------------------------
             p.sub_card_frame().show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -1131,26 +1142,38 @@ impl ContestLockdownApp {
                 ui.horizontal(|ui| {
                     egui::Frame::none()
                         .fill(p.gold_core)
-                        .rounding(Rounding::same(6.0))
-                        .inner_margin(Margin::symmetric(10.0, 6.0))
+                        .rounding(Rounding::same(8.0))
+                        .inner_margin(Margin::symmetric(12.0, 9.0))
                         .show(ui, |ui| {
                             ui.label(
                                 RichText::new("https://")
-                                    .size(13.0)
+                                    .size(14.5)
                                     .strong()
                                     .monospace()
                                     .color(p.text_on_gold),
                             );
                         });
 
+                    let domain_w = (ui.available_width() - 140.0).max(260.0);
                     ui.add(
                         egui::TextEdit::singleline(&mut self.domain_input)
                             .hint_text("bapsoj.org")
-                            .desired_width(340.0),
+                            .font(FontId::proportional(15.0))
+                            .margin(Margin::symmetric(12.0, 9.0))
+                            .desired_width(domain_w),
                     );
 
+                    let test_btn = egui::Button::new(
+                        RichText::new("🌐 Test Link")
+                            .size(13.5)
+                            .strong()
+                            .color(p.text_on_gold),
+                    )
+                    .fill(p.gold_core)
+                    .min_size(egui::vec2(125.0, 36.0));
+
                     if ui
-                        .button("🌐 Test Link")
+                        .add(test_btn)
                         .on_hover_text("Open this URL in your browser to verify")
                         .clicked()
                     {
@@ -1233,12 +1256,26 @@ impl ContestLockdownApp {
 
                 ui.add_space(8.0);
                 ui.horizontal(|ui| {
-                    ui.add(
+                    let custom_w = (ui.available_width() - 180.0).max(260.0);
+                    let response = ui.add(
                         egui::TextEdit::singleline(&mut self.new_extra_domain_input)
                             .hint_text("Add custom domain (e.g. docs.python.org)")
-                            .desired_width(340.0),
+                            .font(FontId::proportional(14.5))
+                            .margin(Margin::symmetric(12.0, 9.0))
+                            .desired_width(custom_w),
                     );
-                    if ui.button("+ Add Custom Domain").clicked()
+                    let add_btn = egui::Button::new(
+                        RichText::new("+ Add Custom Domain")
+                            .size(13.5)
+                            .strong()
+                            .color(p.text_on_gold),
+                    )
+                    .fill(p.gold_core)
+                    .min_size(egui::vec2(168.0, 36.0));
+
+                    let enter_pressed =
+                        response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                    if (ui.add(add_btn).clicked() || enter_pressed)
                         && !self.new_extra_domain_input.is_empty()
                     {
                         let to_add = self.new_extra_domain_input.clone();
@@ -1247,7 +1284,6 @@ impl ContestLockdownApp {
                     }
                 });
 
-                // Show any active extra domains as clean removable chips
                 if !self.extra_domains.is_empty() {
                     ui.add_space(6.0);
                     ui.horizontal_wrapped(|ui| {
@@ -1344,28 +1380,18 @@ impl ContestLockdownApp {
     fn render_page_4_activate(&mut self, ui: &mut egui::Ui, p: AppPalette) {
         let title_col = if p.is_dark { p.gold_core } else { p.navy_core };
 
-        p.card_frame().show(ui, |ui| {
-            ui.horizontal(|ui| {
-                p.draw_logo(ui, 52.0);
-                ui.add_space(8.0);
-                ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new("Page 4 of 4 • Set Session Password & Activate Lockdown")
-                            .size(19.0)
-                            .strong()
-                            .color(title_col),
-                    );
-                    ui.label(
-                        RichText::new(
-                            "Review your contest configuration below, set a session password, and start the lockdown.",
-                        )
-                        .size(13.0)
-                        .color(p.text_secondary),
-                    );
-                });
-            });
+        // Centered ProctorX Hero Banner matching the user's reference screenshot
+        p.render_proctorx_hero_banner(ui);
+        ui.add_space(10.0);
 
-            ui.add_space(12.0);
+        p.card_frame().show(ui, |ui| {
+            ui.label(
+                RichText::new("Page 4 of 4 • Set Session Password & Activate Lockdown")
+                    .size(18.5)
+                    .strong()
+                    .color(title_col),
+            );
+            ui.add_space(8.0);
 
             // Summary Box of Pages 1, 2, and 3 with quick Edit buttons
             p.sub_card_frame().show(ui, |ui| {
@@ -1411,8 +1437,8 @@ impl ContestLockdownApp {
                             },
                             self.recordings_dir
                         ))
-                        .size(12.5)
-                        .color(p.text_primary),
+                            .size(12.5)
+                            .color(p.text_primary),
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.small_button("Edit Step 2").clicked() {
@@ -1449,7 +1475,7 @@ impl ContestLockdownApp {
                 });
             });
 
-            ui.add_space(12.0);
+            ui.add_space(10.0);
 
             let (strength_score, strength_label) =
                 evaluate_password_strength(&self.lock_password_input);
@@ -1461,74 +1487,87 @@ impl ContestLockdownApp {
             };
 
             p.sub_card_frame().show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Set Session Password: ")
-                            .size(14.0)
-                            .strong()
-                            .color(p.text_primary),
-                    );
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.lock_password_input)
-                            .password(!self.show_lock_password)
-                            .hint_text("Enter password to lock")
-                            .desired_width(230.0),
-                    );
-                    if ui
-                        .button(if self.show_lock_password {
-                            "🙈 Hide"
-                        } else {
-                            "👁 Show"
-                        })
-                        .clicked()
-                    {
-                        self.show_lock_password = !self.show_lock_password;
-                    }
-                    if !self.lock_password_input.is_empty() {
+                egui::Grid::new("password_setup_grid")
+                    .num_columns(3)
+                    .spacing([12.0, 10.0])
+                    .show(ui, |ui| {
                         ui.label(
-                            RichText::new(format!("Strength: {}", strength_label))
-                                .size(12.5)
+                            RichText::new("Set Session Password:")
+                                .size(14.5)
                                 .strong()
-                                .color(strength_color),
+                                .color(p.text_primary),
                         );
-                    }
-                });
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.lock_password_input)
+                                .password(!self.show_lock_password)
+                                .hint_text("Enter password to lock")
+                                .font(FontId::proportional(15.0))
+                                .margin(Margin::symmetric(12.0, 9.0))
+                                .desired_width(310.0),
+                        );
+                        ui.horizontal(|ui| {
+                            let show_btn = egui::Button::new(
+                                RichText::new(if self.show_lock_password {
+                                    "🙈 Hide"
+                                } else {
+                                    "👁 Show"
+                                })
+                                .size(13.0)
+                                .strong(),
+                            )
+                            .min_size(egui::vec2(82.0, 36.0));
+                            if ui.add(show_btn).clicked() {
+                                self.show_lock_password = !self.show_lock_password;
+                            }
+                            if !self.lock_password_input.is_empty() {
+                                ui.label(
+                                    RichText::new(format!("Strength: {}", strength_label))
+                                        .size(12.5)
+                                        .strong()
+                                        .color(strength_color),
+                                );
+                            }
+                        });
+                        ui.end_row();
 
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Confirm Password:       ")
-                            .size(14.0)
-                            .strong()
-                            .color(p.text_primary),
-                    );
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.lock_password_confirm)
-                            .password(!self.show_lock_password)
-                            .hint_text("Re-enter password")
-                            .desired_width(230.0),
-                    );
-                    if !self.lock_password_confirm.is_empty() {
-                        if self.lock_password_input == self.lock_password_confirm {
-                            ui.label(
-                                RichText::new("✔ Passwords Match")
-                                    .size(12.5)
-                                    .strong()
-                                    .color(title_col),
-                            );
+                        ui.label(
+                            RichText::new("Confirm Password:")
+                                .size(14.5)
+                                .strong()
+                                .color(p.text_primary),
+                        );
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.lock_password_confirm)
+                                .password(!self.show_lock_password)
+                                .hint_text("Re-enter password")
+                                .font(FontId::proportional(15.0))
+                                .margin(Margin::symmetric(12.0, 9.0))
+                                .desired_width(310.0),
+                        );
+                        if !self.lock_password_confirm.is_empty() {
+                            if self.lock_password_input == self.lock_password_confirm {
+                                ui.label(
+                                    RichText::new("✔ Passwords Match")
+                                        .size(13.0)
+                                        .strong()
+                                        .color(title_col),
+                                );
+                            } else {
+                                ui.label(
+                                    RichText::new("✕ Does not match")
+                                        .size(13.0)
+                                        .strong()
+                                        .color(Color32::from_rgb(255, 120, 120)),
+                                );
+                            }
                         } else {
-                            ui.label(
-                                RichText::new("✕ Does not match")
-                                    .size(12.5)
-                                    .strong()
-                                    .color(Color32::from_rgb(255, 120, 120)),
-                            );
+                            ui.label("");
                         }
-                    }
-                });
+                        ui.end_row();
+                    });
             });
 
-            ui.add_space(14.0);
+            ui.add_space(12.0);
             ui.vertical_centered(|ui| {
                 let cta_button = egui::Button::new(
                     RichText::new("🔒 Set Session Password & Activate Lockdown")
@@ -1539,7 +1578,7 @@ impl ContestLockdownApp {
                 .fill(p.gold_core)
                 .stroke(Stroke::new(1.5_f32, p.cream_core))
                 .rounding(Rounding::same(10.0))
-                .min_size(egui::vec2(440.0, 46.0));
+                .min_size(egui::vec2(450.0, 44.0));
 
                 if ui.add(cta_button).clicked() {
                     self.handle_start_lockdown();
@@ -1556,11 +1595,11 @@ impl ContestLockdownApp {
 
         p.banner_frame(p.danger_bg, p.gold_core).show(ui, |ui| {
             ui.horizontal(|ui| {
-                p.draw_logo(ui, 44.0);
+                p.draw_proctorx_shield_badge(ui, 44.0);
                 ui.add_space(6.0);
                 ui.vertical(|ui| {
                     ui.label(
-                        RichText::new("🔒 CONTEST ENVIRONMENT LOCKED DOWN")
+                        RichText::new("🔒 PROCTORX CONTEST ENVIRONMENT LOCKED DOWN")
                             .size(17.5)
                             .strong()
                             .color(p.gold_core),
@@ -1678,21 +1717,32 @@ impl ContestLockdownApp {
             ui.add_space(8.0);
 
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Session Password:").strong().color(p.text_primary));
+                ui.label(
+                    RichText::new("Session Password:")
+                        .size(14.5)
+                        .strong()
+                        .color(p.text_primary),
+                );
+                let unlock_w = (ui.available_width() - 110.0).max(260.0);
                 let response = ui.add(
                     egui::TextEdit::singleline(&mut self.unlock_password_input)
                         .password(!self.show_unlock_password)
                         .hint_text("Enter session password")
-                        .desired_width(240.0),
+                        .font(FontId::proportional(15.0))
+                        .margin(Margin::symmetric(12.0, 9.0))
+                        .desired_width(unlock_w),
                 );
-                if ui
-                    .button(if self.show_unlock_password {
+                let show_btn = egui::Button::new(
+                    RichText::new(if self.show_unlock_password {
                         "🙈 Hide"
                     } else {
                         "👁 Show"
                     })
-                    .clicked()
-                {
+                    .size(13.0)
+                    .strong(),
+                )
+                .min_size(egui::vec2(85.0, 36.0));
+                if ui.add(show_btn).clicked() {
                     self.show_unlock_password = !self.show_unlock_password;
                 }
                 if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {

@@ -1,7 +1,9 @@
-use eframe::egui::{self, Color32, IconData, Margin, Pos2, Rounding, Shape, Stroke, Style, Vec2, Visuals};
+use eframe::egui::{
+    self, Color32, IconData, Margin, Pos2, RichText, Rounding, Shape, Stroke, Style, Vec2, Visuals,
+};
 use std::sync::Arc;
 
-/// "Neon Sunshine Bliss" Color Palette from Coolors:
+/// "Neon Sunshine Bliss" Color Palette (`#0D3B66`, `#FAF0CA`, `#F4D35E`) for **ProctorX**:
 /// - **Deep Yale Navy (`#0D3B66` / `rgb(13, 59, 102)`):** Primary structural base, deep surfaces, and high-contrast ink.
 /// - **Warm Lemon Cream (`#FAF0CA` / `rgb(250, 240, 202)`):** Crisp warm foreground typography (in Navy Mode) or light canvas (in Cream Mode).
 /// - **Sunshine Gold (`#F4D35E` / `rgb(244, 211, 94)`):** Primary interactive accent, active step indicator, highlights, and call-to-action buttons.
@@ -27,7 +29,7 @@ pub struct AppPalette {
     // Accents
     pub accent_primary: Color32,
     pub accent_hover: Color32,
-    // Semantic Status Badges (harmonized with #0D3B66 / #FAF0CA / #F4D35E)
+    // Semantic Status Badges
     pub success_fg: Color32,
     pub success_bg: Color32,
     pub danger_fg: Color32,
@@ -49,7 +51,7 @@ impl AppPalette {
             cream_core,
             gold_core,
             bg_canvas: navy_core,                              // #0D3B66
-            bg_header: Color32::from_rgb(9, 43, 76),           // #092B4C
+            bg_header: Color32::from_rgb(11, 50, 88),          // #0B3258
             bg_card: Color32::from_rgb(18, 73, 124),           // #12497C
             bg_card_subtle: Color32::from_rgb(24, 88, 148),    // #185894
             bg_input: Color32::from_rgb(8, 38, 68),            // #082644
@@ -131,23 +133,23 @@ impl AppPalette {
         };
         visuals.widgets.inactive.bg_fill = inactive_bg;
         visuals.widgets.inactive.weak_bg_fill = inactive_bg;
-        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, self.border_subtle);
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.2_f32, self.border_subtle);
         visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, self.text_primary);
-        visuals.widgets.inactive.rounding = Rounding::same(7.0);
+        visuals.widgets.inactive.rounding = Rounding::same(8.0);
 
         // Hovered widgets
         visuals.widgets.hovered.bg_fill = self.accent_hover;
         visuals.widgets.hovered.weak_bg_fill = self.accent_hover;
         visuals.widgets.hovered.bg_stroke = Stroke::new(1.5_f32, self.navy_core);
         visuals.widgets.hovered.fg_stroke = Stroke::new(1.5_f32, self.text_on_gold);
-        visuals.widgets.hovered.rounding = Rounding::same(7.0);
+        visuals.widgets.hovered.rounding = Rounding::same(8.0);
 
         // Active / clicked widgets
         visuals.widgets.active.bg_fill = self.accent_primary;
         visuals.widgets.active.weak_bg_fill = self.accent_primary;
         visuals.widgets.active.bg_stroke = Stroke::new(1.5_f32, self.cream_core);
         visuals.widgets.active.fg_stroke = Stroke::new(1.5_f32, self.text_on_gold);
-        visuals.widgets.active.rounding = Rounding::same(7.0);
+        visuals.widgets.active.rounding = Rounding::same(8.0);
 
         // Selection highlight
         visuals.selection.bg_fill = self.gold_core;
@@ -155,7 +157,7 @@ impl AppPalette {
 
         style.visuals = visuals;
         style.spacing.item_spacing = egui::vec2(8.0, 8.0);
-        style.spacing.button_padding = egui::vec2(13.0, 7.0);
+        style.spacing.button_padding = egui::vec2(14.0, 8.0);
         ctx.set_style(style);
     }
 
@@ -173,7 +175,7 @@ impl AppPalette {
             .inner_margin(Margin::symmetric(20.0, 18.0))
     }
 
-    /// Returns a clean sub-section card Frame for nested groups (such as on Page 3).
+    /// Returns a clean sub-section card Frame for nested groups.
     pub fn sub_card_frame(&self) -> egui::Frame {
         egui::Frame::none()
             .fill(self.bg_input)
@@ -203,83 +205,129 @@ impl AppPalette {
             });
     }
 
-    /// Draws the custom vector Contest Lockdown Logo Emblem (`< Keyhole >` inside a double-bordered Shield)
-    /// using the exact Neon Sunshine Bliss palette (`#0D3B66`, `#FAF0CA`, `#F4D35E`).
-    pub fn draw_logo(&self, ui: &mut egui::Ui, size: f32) {
+    /// Draws the rounded-square ProctorX Shield + Checkmark Icon matching the user's reference screenshot:
+    /// - Rounded square border in `#F4D35E` Sunshine Gold on `#0D3B66` Deep Navy fill
+    /// - Inner geometric shield in `#F4D35E` Sunshine Gold with a crisp checkmark inside
+    pub fn draw_proctorx_shield_badge(&self, ui: &mut egui::Ui, size: f32) {
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::hover());
         let painter = ui.painter_at(rect);
 
-        let c = rect.center();
-        let r = size * 0.46;
-
-        // 1. Deep Navy circular badge backdrop (#0D3B66) with thin gold ring
-        painter.circle(
-            c,
-            r + 1.5,
+        // 1. Rounded square container (#0D3B66 fill, #F4D35E border)
+        let box_rounding = Rounding::same((size * 0.25).max(8.0));
+        painter.rect(
+            rect.shrink(1.0),
+            box_rounding,
             self.navy_core,
-            Stroke::new(1.5_f32, self.gold_core.gamma_multiply(0.65)),
+            Stroke::new((size * 0.042).max(1.6), self.gold_core),
         );
 
-        // Helper closure to compute a 6-point geometric shield polygon scaled by `s`
-        let shield_pts = |s: f32| -> Vec<Pos2> {
-            vec![
-                Pos2::new(c.x, c.y - r * 0.84 * s),                // Top crest
-                Pos2::new(c.x + r * 0.72 * s, c.y - r * 0.50 * s), // Top-right shoulder
-                Pos2::new(c.x + r * 0.62 * s, c.y + r * 0.22 * s), // Mid-right flank
-                Pos2::new(c.x, c.y + r * 0.86 * s),                // Bottom tip
-                Pos2::new(c.x - r * 0.62 * s, c.y + r * 0.22 * s), // Mid-left flank
-                Pos2::new(c.x - r * 0.72 * s, c.y - r * 0.50 * s), // Top-left shoulder
-            ]
-        };
+        let c = rect.center();
+        let r = size * 0.27;
 
-        // 2. Outer Shield in Sunshine Gold (#F4D35E)
-        let outer = shield_pts(1.0);
-        painter.add(Shape::convex_polygon(
-            outer.clone(),
-            Color32::from_rgb(13, 59, 102),
-            Stroke::new((size * 0.055).max(1.8), self.gold_core),
-        ));
-
-        // 3. Inner Shield in Warm Cream (#FAF0CA)
-        let inner = shield_pts(0.76);
+        // 2. Shield outline inside the rounded square
+        let shield_pts = vec![
+            Pos2::new(c.x, c.y - r * 0.95),                // Top center crest
+            Pos2::new(c.x + r * 0.78, c.y - r * 0.58),     // Top-right corner
+            Pos2::new(c.x + r * 0.72, c.y + r * 0.18),     // Mid-right flank
+            Pos2::new(c.x, c.y + r * 0.95),                // Bottom tip
+            Pos2::new(c.x - r * 0.72, c.y + r * 0.18),     // Mid-left flank
+            Pos2::new(c.x - r * 0.78, c.y - r * 0.58),     // Top-left corner
+        ];
         painter.add(Shape::closed_line(
-            inner,
-            Stroke::new((size * 0.038).max(1.2), self.cream_core),
+            shield_pts,
+            Stroke::new((size * 0.048).max(1.8), self.gold_core),
         ));
 
-        // 4. Center Keyhole in Sunshine Gold (#F4D35E)
-        let kh_center = Pos2::new(c.x, c.y - r * 0.12);
-        painter.circle_filled(kh_center, r * 0.16, self.gold_core);
-        let keyhole_base = vec![
-            Pos2::new(c.x - r * 0.08, c.y - r * 0.02),
-            Pos2::new(c.x + r * 0.08, c.y - r * 0.02),
-            Pos2::new(c.x + r * 0.14, c.y + r * 0.34),
-            Pos2::new(c.x - r * 0.14, c.y + r * 0.34),
+        // 3. Crisp Checkmark inside the shield
+        let check_pts = vec![
+            Pos2::new(c.x - r * 0.32, c.y + r * 0.02),
+            Pos2::new(c.x - r * 0.06, c.y + r * 0.28),
+            Pos2::new(c.x + r * 0.36, c.y - r * 0.22),
         ];
-        painter.add(Shape::convex_polygon(
-            keyhole_base,
-            self.gold_core,
-            Stroke::NONE,
+        painter.add(Shape::line(
+            check_pts,
+            Stroke::new((size * 0.048).max(1.8), self.gold_core),
         ));
+    }
 
-        // 5. Left & Right Code Brackets `<` and `>` in Warm Cream (#FAF0CA)
-        let bracket_stroke = Stroke::new((size * 0.045).max(1.4), self.cream_core);
-        let left_bracket = vec![
-            Pos2::new(c.x - r * 0.24, c.y - r * 0.18),
-            Pos2::new(c.x - r * 0.44, c.y + r * 0.04),
-            Pos2::new(c.x - r * 0.24, c.y + r * 0.26),
-        ];
-        let right_bracket = vec![
-            Pos2::new(c.x + r * 0.24, c.y - r * 0.18),
-            Pos2::new(c.x + r * 0.44, c.y + r * 0.04),
-            Pos2::new(c.x + r * 0.24, c.y + r * 0.26),
-        ];
-        painter.add(Shape::line(left_bracket, bracket_stroke));
-        painter.add(Shape::line(right_bracket, bracket_stroke));
+    /// Renders the inline **ProctorX** brand title (`Proctor` in `#FAF0CA` Cream + `X` in `#F4D35E` Gold).
+    pub fn render_proctorx_wordmark(&self, ui: &mut egui::Ui, font_size: f32) {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            ui.label(
+                RichText::new("Proctor")
+                    .size(font_size)
+                    .strong()
+                    .color(self.cream_core),
+            );
+            ui.label(
+                RichText::new("X")
+                    .size(font_size)
+                    .strong()
+                    .color(self.gold_core),
+            );
+        });
+    }
+
+    /// Renders the centered **ProctorX** hero banner matching the user's screenshot:
+    /// - Rounded square Shield+Checkmark icon
+    /// - `ProctorX` wordmark
+    /// - `SECURE. MONITOR. CONTROL.` motto in `#F4D35E` Gold
+    /// - Subtle divider line + `Cross-Platform Contest Lockdown & Proctoring Suite` subtitle
+    pub fn render_proctorx_hero_banner(&self, ui: &mut egui::Ui) {
+        egui::Frame::none()
+            .fill(self.navy_core)
+            .stroke(Stroke::new(1.2_f32, self.gold_core.gamma_multiply(0.5)))
+            .rounding(Rounding::same(14.0))
+            .inner_margin(Margin::symmetric(24.0, 14.0))
+            .show(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    self.draw_proctorx_shield_badge(ui, 52.0);
+                    ui.add_space(4.0);
+
+                    // Centered "ProctorX" title
+                    let mut job = egui::text::LayoutJob::default();
+                    job.append(
+                        "Proctor",
+                        0.0,
+                        egui::TextFormat {
+                            font_id: egui::FontId::proportional(24.0),
+                            color: self.cream_core,
+                            ..Default::default()
+                        },
+                    );
+                    job.append(
+                        "X",
+                        0.0,
+                        egui::TextFormat {
+                            font_id: egui::FontId::proportional(24.0),
+                            color: self.gold_core,
+                            ..Default::default()
+                        },
+                    );
+                    ui.label(job);
+
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new("SECURE. MONITOR. CONTROL.")
+                            .size(13.0)
+                            .strong()
+                            .color(self.gold_core),
+                    );
+                    ui.add_space(6.0);
+                    ui.separator();
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new("Cross-Platform Contest Lockdown & Proctoring Suite")
+                            .size(12.5)
+                            .color(self.cream_core),
+                    );
+                });
+            });
     }
 }
 
-/// Generates a 64x64 RGBA native OS window & dock icon matching the Shield + Lock logo
+/// Generates a 64x64 RGBA native OS window & dock icon matching the ProctorX Shield+Checkmark logo
 /// in `#0D3B66` Deep Navy, `#FAF0CA` Cream, and `#F4D35E` Sunshine Gold.
 pub fn build_window_icon() -> Arc<IconData> {
     let w = 64_usize;
@@ -287,42 +335,35 @@ pub fn build_window_icon() -> Arc<IconData> {
     let mut rgba = vec![0_u8; w * h * 4];
 
     let navy = [13_u8, 59, 102, 255];   // #0D3B66
-    let cream = [250_u8, 240, 202, 255]; // #FAF0CA
-    let gold = [244_u8, 211, 94, 255];   // #F4D35E
+    let gold = [244_u8, 211, 94, 255];  // #F4D35E
 
     for y in 0..h {
         for x in 0..w {
             let fx = (x as f32 - 31.5) / 31.5;
             let fy = (y as f32 - 31.5) / 31.5;
-            let dist = (fx * fx + fy * fy).sqrt();
             let idx = (y * w + x) * 4;
 
-            if dist <= 0.95 {
-                // Base Navy circle
+            // Rounded square SDF
+            let qx = fx.abs() - 0.68;
+            let qy = fy.abs() - 0.68;
+            let r_dist = (qx.max(0.0).powi(2) + qy.max(0.0).powi(2)).sqrt() + qx.max(qy).min(0.0) - 0.22;
+
+            if r_dist <= 0.0 {
                 let mut color = navy;
-
-                // Shield boundary equation
-                let ax = fx.abs();
-                let shield_dist = if fy < -0.1 {
-                    ax * 1.15 + (fy + 0.55).abs() * 0.45
-                } else {
-                    ax * 1.25 + (fy + 0.1) * 0.85
-                };
-
-                if (0.64..=0.74).contains(&shield_dist) && fy > -0.75 && fy < 0.78 {
+                if r_dist >= -0.065 {
                     color = gold;
-                } else if (0.50..=0.56).contains(&shield_dist) && fy > -0.62 && fy < 0.64 {
-                    color = cream;
                 } else {
-                    // Keyhole in the center
-                    let kh_dist = (fx * fx + (fy + 0.10) * (fy + 0.10)).sqrt();
-                    let in_keyhole_top = kh_dist <= 0.15;
-                    let in_keyhole_slot = ax <= (0.07 + (fy + 0.05) * 0.18) && (-0.05..=0.34).contains(&fy);
-                    if in_keyhole_top || in_keyhole_slot {
+                    // Inner shield outline
+                    let ax = fx.abs();
+                    let shield_d = if fy < -0.05 {
+                        ax * 1.45 + (fy + 0.42).abs() * 0.55
+                    } else {
+                        ax * 1.55 + (fy + 0.05) * 1.05
+                    };
+                    if (0.42..=0.52).contains(&shield_d) && (-0.52..=0.55).contains(&fy) {
                         color = gold;
                     }
                 }
-
                 rgba[idx..idx + 4].copy_from_slice(&color);
             }
         }
