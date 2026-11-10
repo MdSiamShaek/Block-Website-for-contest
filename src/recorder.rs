@@ -10,6 +10,8 @@ pub struct ScreenRecorder {
     child: Option<Child>,
     started_at: Option<Instant>,
     output_file: Option<PathBuf>,
+    installer_child: Option<Child>,
+    pub capture_audio: bool,
 }
 
 impl Default for ScreenRecorder {
@@ -24,27 +26,44 @@ impl ScreenRecorder {
             child: None,
             started_at: None,
             output_file: None,
+            installer_child: None,
+            capture_audio: false,
         }
     }
 
     /// Checks if `ffmpeg` is available on the system PATH or in common install locations.
     pub fn find_ffmpeg() -> Option<String> {
         let candidates = if cfg!(target_os = "windows") {
-            vec!["ffmpeg.exe", r"C:\ffmpeg\bin\ffmpeg.exe"]
+            vec![
+                "ffmpeg.exe".to_string(),
+                r"C:\ffmpeg\bin\ffmpeg.exe".to_string(),
+                format!(
+                    r"{}\Microsoft\WinGet\Links\ffmpeg.exe",
+                    std::env::var("LOCALAPPDATA").unwrap_or_default()
+                ),
+            ]
         } else if cfg!(target_os = "macos") {
             vec![
-                "ffmpeg",
-                "/opt/homebrew/bin/ffmpeg",
-                "/usr/local/bin/ffmpeg",
+                "ffmpeg".to_string(),
+                "/opt/homebrew/bin/ffmpeg".to_string(),
+                "/usr/local/bin/ffmpeg".to_string(),
             ]
         } else {
-            vec!["ffmpeg", "/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
+            vec![
+                "ffmpeg".to_string(),
+                "/usr/bin/ffmpeg".to_string(),
+                "/usr/local/bin/ffmpeg".to_string(),
+                "/snap/bin/ffmpeg".to_string(),
+            ]
         };
 
         for bin in candidates {
-            if let Ok(output) = Command::new(bin).arg("-version").output() {
+            if bin.is_empty() {
+                continue;
+            }
+            if let Ok(output) = Command::new(&bin).arg("-version").output() {
                 if output.status.success() {
-                    return Some(bin.to_string());
+                    return Some(bin);
                 }
             }
         }
@@ -55,9 +74,13 @@ impl ScreenRecorder {
         Self::find_ffmpeg().is_some()
     }
 
-    /// Installs FFmpeg automatically using the OS package manager (`winget`, `brew`, or `apt`).
-    pub fn install_ffmpeg() -> Result<String, String> {
-        if cfg!(target_os = "windows") {
+    /// Installs FFmpeg automatically using the OS package manager (`winget`, `brew`, or `apt`) and tracks the process.
+    pub fn start_ffmpeg_install(&mut self) -> Result<String, String> {
+        if self.is_installing_ffmpeg() {
+            return Err("FFmpeg installation is already in progress.".to_string());
+        }
+
+        let child = if cfg!(target_os = "windows") {
             Command::new("winget")
                 .args([
                     "install",
@@ -68,30 +91,92 @@ impl ScreenRecorder {
                     "--accept-package-agreements",
                     "--accept-source-agreements",
                 ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .spawn()
-                .map_err(|e| format!("Failed to launch winget for FFmpeg: {}", e))?;
-            Ok("Installing FFmpeg via winget (Gyan.FFmpeg)...".to_string())
+                .map_err(|e| format!("Failed to launch winget for FFmpeg: {}", e))?
         } else if cfg!(target_os = "macos") {
             let brew = if Path::new("/opt/homebrew/bin/brew").exists() {
                 "/opt/homebrew/bin/brew"
+            } else if Path::new("/usr/local/bin/brew").exists() {
+                "/usr/local/bin/brew"
             } else {
                 "brew"
             };
             Command::new(brew)
                 .args(["install", "ffmpeg"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .spawn()
-                .map_err(|e| format!("Failed to launch Homebrew for FFmpeg: {}", e))?;
-            Ok("Installing FFmpeg via Homebrew (brew install ffmpeg)...".to_string())
+                .map_err(|e| format!("Failed to launch Homebrew for FFmpeg: {}", e))?
         } else {
             Command::new("sh")
-                .args(["-c", "pkexec apt-get install -y ffmpeg || sudo apt-get install -y ffmpeg"])
+                .args([
+                    "-c",
+                    "pkexec apt-get install -y ffmpeg || sudo apt-get install -y ffmpeg",
+                ])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .spawn()
-                .map_err(|e| format!("Failed to launch apt for FFmpeg: {}", e))?;
-            Ok("Installing FFmpeg via system package manager...".to_string())
+                .map_err(|e| format!("Failed to launch apt for FFmpeg: {}", e))?
+        };
+
+        self.installer_child = Some(child);
+        Ok("Installing FFmpeg in the background...".to_string())
+    }
+
+    pub fn is_installing_ffmpeg(&mut self) -> bool {
+        if let Some(child) = self.installer_child.as_mut() {
+            matches!(child.try_wait(), Ok(None))
+        } else {
+            false
         }
     }
 
-    /// Starts recording the entire desktop into the `recordings/` directory.
+    pub fn poll_ffmpeg_install(&mut self) -> Option<Result<String, String>> {
+        let child = self.installer_child.as_mut()?;
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                self.installer_child = None;
+                if status.success() || Self::is_ffmpeg_available() {
+                    Some(Ok("FFmpeg installed and ready for screen recording!".to_string()))
+                } else {
+                    Some(Err("FFmpeg installer finished with an error.".to_string()))
+                }
+            }
+            Ok(None) => None,
+            Err(e) => {
+                self.installer_child = None;
+                Some(Err(format!("FFmpeg installer error: {}", e)))
+            }
+        }
+    }
+
+    /// Dynamically detects the macOS AVFoundation screen device index (e.g. "Capture screen 0").
+    fn detect_macos_screen_input(ffmpeg_bin: &str, capture_audio: bool) -> String {
+        let audio_part = if capture_audio { "0" } else { "none" };
+        if let Ok(output) = Command::new(ffmpeg_bin)
+            .args(["-f", "avfoundation", "-list_devices", "true", "-i", ""])
+            .output()
+        {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            for line in stderr.lines() {
+                if line.contains("Capture screen") {
+                    if let Some(start) = line.rfind('[') {
+                        if let Some(end) = line[start..].find(']') {
+                            let idx = line[start + 1..start + end].trim();
+                            if idx.chars().all(|c| c.is_ascii_digit()) && !idx.is_empty() {
+                                return format!("{}:{}", idx, audio_part);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        format!("1:{}", audio_part)
+    }
+
+    /// Starts recording the entire desktop into the `output_dir` directory.
     pub fn start(&mut self, output_dir: &str) -> Result<String, String> {
         if self.is_recording() {
             return Ok(self
@@ -112,12 +197,13 @@ impl ScreenRecorder {
         let file_path = Path::new(output_dir).join(format!("contest_session_{}.mp4", timestamp));
         let file_str = file_path.to_string_lossy().to_string();
 
-        let mut cmd = Command::new(ffmpeg_bin);
-        cmd.arg("-y"); // Overwrite if needed
+        let mut cmd = Command::new(&ffmpeg_bin);
+        cmd.arg("-y");
 
         if cfg!(target_os = "windows") {
             cmd.args(["-f", "gdigrab", "-framerate", "15", "-i", "desktop"]);
         } else if cfg!(target_os = "macos") {
+            let input_spec = Self::detect_macos_screen_input(&ffmpeg_bin, self.capture_audio);
             cmd.args([
                 "-f",
                 "avfoundation",
@@ -126,7 +212,7 @@ impl ScreenRecorder {
                 "-framerate",
                 "15",
                 "-i",
-                "1:none",
+                &input_spec,
             ]);
         } else {
             let display = std::env::var("DISPLAY").unwrap_or_else(|_| ":0.0".to_string());
@@ -176,6 +262,28 @@ impl ScreenRecorder {
         }
     }
 
+    /// Opens the recordings folder in the system file explorer (Finder / Explorer / Files).
+    pub fn open_recordings_folder(output_dir: &str) -> Result<(), String> {
+        fs::create_dir_all(output_dir).map_err(|e| e.to_string())?;
+        if cfg!(target_os = "windows") {
+            Command::new("explorer")
+                .arg(output_dir)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else if cfg!(target_os = "macos") {
+            Command::new("open")
+                .arg(output_dir)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        } else {
+            Command::new("xdg-open")
+                .arg(output_dir)
+                .spawn()
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
     /// Returns true if the recording child process is currently running.
     pub fn is_recording(&mut self) -> bool {
         if let Some(child) = self.child.as_mut() {
@@ -207,5 +315,11 @@ impl ScreenRecorder {
 
     pub fn current_file(&self) -> Option<String> {
         self.output_file.as_ref().map(|p| p.display().to_string())
+    }
+}
+
+impl Drop for ScreenRecorder {
+    fn drop(&mut self) {
+        let _ = self.stop();
     }
 }
