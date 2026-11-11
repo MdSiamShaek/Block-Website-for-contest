@@ -1,11 +1,15 @@
-name: Build Cross-Platform Binaries
+name: Build & Release Cross-Platform Binaries
 
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -16,14 +20,14 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            artifact_name: contest_lockdown-windows-x86_64.exe
-            binary_path: target/release/contest_lockdown.exe
+            asset_name: ProctorX-windows-x86_64.exe
+            binary_name: contest_lockdown.exe
           - os: macos-latest
-            artifact_name: contest_lockdown-macos-arm64
-            binary_path: target/release/contest_lockdown
+            asset_name: ProctorX-macos-arm64
+            binary_name: contest_lockdown
           - os: ubuntu-latest
-            artifact_name: contest_lockdown-linux-x86_64
-            binary_path: target/release/contest_lockdown
+            asset_name: ProctorX-linux-x86_64
+            binary_name: contest_lockdown
 
     steps:
       - name: Checkout repository
@@ -44,8 +48,37 @@ jobs:
       - name: Build release binary
         run: cargo build --release --verbose
 
+      - name: Prepare asset for packaging
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/${{ matrix.binary_name }} dist/${{ matrix.asset_name }}
+          chmod +x dist/${{ matrix.asset_name }} || true
+
       - name: Upload compiled binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.binary_path }}
+          name: ${{ matrix.asset_name }}
+          path: dist/${{ matrix.asset_name }}
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Display downloaded assets
+        run: |
+          ls -la artifacts/
+
+      - name: Publish Release to GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

@@ -4,3 +4,5 @@ recordings/
 .DS_Store
 *.exe
 *.pdb
+dist/
+assets/proctorx.iconset/
